@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SinapseClient {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  apiBaseUrl  String
+  apiKey      String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets      Ticket[]
+  importStates ImportState[]
+
+  @@map("sinapse_clients")
+}
+
+model ImportState {
+  id           String   @id @default(uuid())
+  key          String
+  lastImportAt DateTime @default(now())
+  clientId     String
+
+  client       SinapseClient @relation(fields: [clientId], references: [id])
+
+  @@unique([clientId, key])
+  @@map("import_states")
+}
+
+model Ticket {
+  id                           String    @id @default(uuid())
+  externalUuid                 String
+  externalTicketId             Int?
+  status                       String?
+  contactName                  String?
+  contactNumber                String?
+  contactExternalId            Int?
+  socialConnectionId           Int?
+  companyId                    Int?
+  createdAtExternal            DateTime?
+  updatedAtExternal            DateTime?
+  lastImportedMessageCreatedAt DateTime?
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+  clientId                     String
+
+  client   SinapseClient @relation(fields: [clientId], references: [id])
+  sessions Session[]
+  messages Message[]
+
+  @@unique([clientId, externalUuid])
+  @@index([clientId, updatedAtExternal])
+  @@map("tickets")
+}
+
+enum SessionType {
+  CLOSED
+  OPEN_REAL
+  OPEN_WEAK
+  UNTRACKED
+}
+
+model Session {
+  id                 String      @id @default(uuid())
+  ticketId           String
+  externalTrackingId Int?
+  type               SessionType
+  startedAt          DateTime
+  endedAt            DateTime?
+  assignedUserName   String?
+  assignedUserEmail  String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  ticket   Ticket    @relation(fields: [ticketId], references: [id])
+  messages Message[]
+
+  @@unique([ticketId, externalTrackingId])
+  @@index([ticketId, startedAt])
+  @@map("sessions")
+}
+
+model Message {
+  id                String    @id @default(uuid())
+  ticketId          String
+  sessionId         String?
+  externalMessageId String
+  key               String?
+  body              String
+  fromMe            Boolean
+  mediaUrl          String?
+  mediaType         String?
+  createdAtExternal DateTime
+  updatedAtExternal DateTime
+  rawJson           Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  ticket  Ticket   @relation(fields: [ticketId], references: [id])
+  session Session? @relation(fields: [sessionId], references: [id])
+
+  @@unique([ticketId, externalMessageId])
+  @@index([ticketId, createdAtExternal])
+  @@map("messages")
+}

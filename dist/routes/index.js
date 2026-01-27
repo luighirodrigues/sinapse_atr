@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const JobController_1 = require("../controllers/JobController");
+const TicketController_1 = require("../controllers/TicketController");
+const router = (0, express_1.Router)();
+const jobController = new JobController_1.JobController();
+const ticketController = new TicketController_1.TicketController();
+router.post('/jobs/import', (req, res) => jobController.import(req, res));
+router.get('/tickets/:uuid', (req, res) => ticketController.get(req, res));
+router.get('/health', (req, res) => res.json({ status: 'ok' }));
+exports.default = router;
