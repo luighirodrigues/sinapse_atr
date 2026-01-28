@@ -6,20 +6,46 @@ const ImportStateRepository_1 = require("../repositories/ImportStateRepository")
 const TicketRepository_1 = require("../repositories/TicketRepository");
 const SessionRepository_1 = require("../repositories/SessionRepository");
 const MessageRepository_1 = require("../repositories/MessageRepository");
+const SinapseClientRepository_1 = require("../repositories/SinapseClientRepository");
 const NormalizationService_1 = require("./NormalizationService");
 const client_1 = require("@prisma/client");
 class TicketImportService {
     constructor() {
-        this.api = new ExternalApiService_1.ExternalApiService();
         this.importStateRepo = new ImportStateRepository_1.ImportStateRepository();
         this.ticketRepo = new TicketRepository_1.TicketRepository();
         this.sessionRepo = new SessionRepository_1.SessionRepository();
         this.messageRepo = new MessageRepository_1.MessageRepository();
+        this.clientRepo = new SinapseClientRepository_1.SinapseClientRepository();
         this.normalization = new NormalizationService_1.NormalizationService();
     }
-    async runImport() {
+    async runImport(slug) {
         console.log('Starting import job...');
-        const importState = await this.importStateRepo.getOrCreate();
+        let clients = [];
+        if (slug) {
+            const client = await this.clientRepo.findBySlug(slug);
+            if (client && client.isActive)
+                clients = [client];
+            else
+                console.log(`Client ${slug} not found or inactive.`);
+        }
+        else {
+            clients = await this.clientRepo.listActive();
+        }
+        console.log(`Found ${clients.length} clients to process.`);
+        for (const client of clients) {
+            console.log(`Processing client: ${client.slug}`);
+            try {
+                await this.processClient(client);
+            }
+            catch (e) {
+                console.error(`Error processing client ${client.slug}:`, e);
+            }
+        }
+        console.log('Import job finished.');
+    }
+    async processClient(client) {
+        const api = (0, ExternalApiService_1.createExternalApiClient)(client);
+        const importState = await this.importStateRepo.getOrCreate(client.id);
         const lastImportAt = importState.lastImportAt;
         let maxUpdatedAt = lastImportAt;
         let page = 1;
@@ -27,32 +53,26 @@ class TicketImportService {
         let processedCount = 0;
         // 1. Fetch Tickets
         while (hasMore) {
-            console.log(`Fetching tickets page ${page}...`);
-            const response = await this.api.getTickets({ page, limit: 50 }); // Assume limit 50
+            console.log(`[${client.slug}] Fetching tickets page ${page}...`);
+            const response = await api.getTickets({ page, limit: 50 });
             const tickets = Array.isArray(response) ? response : response.data;
             if (tickets.length === 0) {
                 hasMore = false;
                 break;
             }
             // Filter by updatedAt >= lastImportAt
-            // We assume API returns mixed order or desc? We filter manually.
             const newTickets = tickets.filter(t => new Date(t.updatedAt) >= lastImportAt);
             if (newTickets.length === 0 && tickets.length > 0) {
-                // If we found tickets but none are new, and if api is ordered by updatedAt desc, we could stop.
-                // But let's assume unsorted and process all pages just to be safe or until we see very old ones?
-                // To be safe: process all pages. But for efficiency, if API supports sort, we'd use it.
-                // We'll just continue.
+                // Continue
             }
             for (const ticket of newTickets) {
-                await this.processTicket(ticket);
+                await this.processTicket(client.id, api, ticket);
                 const ticketUpdatedAt = new Date(ticket.updatedAt);
                 if (ticketUpdatedAt > maxUpdatedAt) {
                     maxUpdatedAt = ticketUpdatedAt;
                 }
             }
             processedCount += newTickets.length;
-            // Pagination check
-            // If response has meta, use it. Else check if array length < limit
             if ('meta' in response && response.meta) {
                 if (page >= response.meta.totalPages || page >= (response.meta.last_page || 9999))
                     hasMore = false;
@@ -62,29 +82,17 @@ class TicketImportService {
             }
             page++;
         }
-        // Update global import state (margin 2 mins)
-        // newLastImportAt = maxTicketUpdatedAt - interval '2 minutes'
+        // Update import state
         const margin = 2 * 60 * 1000;
         const newLastImportAt = new Date(maxUpdatedAt.getTime() - margin);
-        await this.importStateRepo.updateLastImportAt(newLastImportAt);
-        console.log(`Import finished. Processed ${processedCount} tickets.`);
+        await this.importStateRepo.updateLastImportAt(client.id, newLastImportAt);
+        console.log(`[${client.slug}] Import finished. Processed ${processedCount} tickets.`);
     }
-    async processTicket(externalTicket) {
-        console.log(`Processing ticket ${externalTicket.uuid}`);
+    async processTicket(clientId, api, externalTicket) {
         // 1. Upsert Ticket
         const ticket = await this.ticketRepo.upsert({
             externalUuid: externalTicket.uuid,
-            // externalTicketId: externalTicket.id, // Not present in provided fields? User listed 'uuid' as main.
-            // But in getMessages, ticketId is number.
-            // Wait, endpoint 1 description: "uuid: string ... id: number" ?
-            // Description says: "uuid: string (identificador principal...)" and "contact: {id...}".
-            // It doesn't explicitly list `id` (number) for the ticket itself in endpoint 1 fields list.
-            // But in endpoint 2 messages: "ticketId: number".
-            // We assume we might not get the number ID in the list, or we do.
-            // Let's assume we don't have it from list, but maybe we can infer or leave it null?
-            // Or maybe `externalTicket.id` exists?
-            // User listed: "uuid", "updatedAt", "createdAt", "status", "contact", "ticketTrakings".
-            // I'll leave externalTicketId optional/null if not found.
+            clientId: clientId,
             status: externalTicket.status,
             contactName: externalTicket.contact?.name,
             contactNumber: externalTicket.contact?.number,
@@ -92,11 +100,9 @@ class TicketImportService {
             companyId: externalTicket.companyId,
             createdAtExternal: new Date(externalTicket.createdAt),
             updatedAtExternal: new Date(externalTicket.updatedAt),
-            // Preserve existing cursor if exists
         });
         // 2. Normalize and Upsert Sessions
         const normalized = this.normalization.normalizeTrackings(externalTicket.ticketTrakings);
-        // Upsert CLOSED sessions
         await this.sessionRepo.upsertMany(normalized.closed.map(s => ({
             ticketId: ticket.id,
             externalTrackingId: s.externalTrackingId,
@@ -106,8 +112,6 @@ class TicketImportService {
             assignedUserName: s.assignedUser?.name,
             assignedUserEmail: s.assignedUser?.email,
         })));
-        // Handle OPEN session
-        // We sync the open session (delete old open, insert new one)
         if (normalized.open) {
             await this.sessionRepo.syncOpenSession(ticket.id, {
                 ticketId: ticket.id,
@@ -123,20 +127,15 @@ class TicketImportService {
             await this.sessionRepo.syncOpenSession(ticket.id, null);
         }
         // 3. Import Messages
-        await this.importMessagesForTicket(externalTicket.uuid, ticket.id, ticket.lastImportedMessageCreatedAt);
+        await this.importMessagesForTicket(api, externalTicket.uuid, ticket.id, ticket.lastImportedMessageCreatedAt);
     }
-    async importMessagesForTicket(uuid, ticketDbId, cursor) {
+    async importMessagesForTicket(api, uuid, ticketDbId, cursor) {
         let page = 1;
         let hasMore = true;
         let maxCreatedAt = cursor;
         const limit = 20;
-        // We collect all new messages to upsert
-        // But we need to upsert them in batches?
-        // Actually, we can just upsert as we go.
         while (hasMore) {
-            const response = await this.api.getMessages(uuid, { page, limit });
-            // response might be the array itself or { data: [...] } depending on the API structure.
-            // Based on previous errors and common patterns, we need to handle potential null/undefined data safely.
+            const response = await api.getMessages(uuid, { page, limit });
             let messages = [];
             if (Array.isArray(response)) {
                 messages = response;
@@ -148,29 +147,18 @@ class TicketImportService {
                 messages = response.data;
             }
             else {
-                // If response.data is undefined/null, treat as empty array
                 messages = [];
             }
             if (messages.length === 0) {
                 hasMore = false;
                 break;
             }
-            // Filter/Stop logic
-            // "Parar paginação cedo quando detectar que a mensagem mais antiga daquela página tem createdAt <= cursor"
-            // Assumes desc order.
-            // Note: User says "assumir desc; se não for, ordenar local".
-            // If we order local, we still need to fetch pages.
-            // If API returns asc, we would need to fetch ALL pages to find the newest.
-            // Assuming typical chat API: desc (newest first).
             const sortedMessages = messages.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             const newMessages = [];
             for (const msg of sortedMessages) {
                 const msgCreatedAt = new Date(msg.createdAt);
                 if (cursor && msgCreatedAt <= cursor) {
-                    // Reached old messages
                     hasMore = false;
-                    // We can stop processing this batch if strictly ordered, but since we sorted locally, 
-                    // we just skip this message.
                     continue;
                 }
                 newMessages.push(msg);
@@ -194,48 +182,30 @@ class TicketImportService {
             if (messages.length < limit) {
                 hasMore = false;
             }
-            // Check for hasMore in response meta/root
             if (response && typeof response === 'object' && !Array.isArray(response)) {
-                if ('hasMore' in response) {
-                    // If API explicitly tells us if there are more
+                if ('hasMore' in response)
                     hasMore = !!response.hasMore;
-                }
                 if ('totalPages' in response && 'currentPage' in response) {
-                    if (Number(response.currentPage) >= Number(response.totalPages)) {
+                    if (Number(response.currentPage) >= Number(response.totalPages))
                         hasMore = false;
-                    }
                 }
             }
             page++;
         }
-        // 4. Reassign Sessions (ALL messages)
-        // "Quando o ticket for reprocessado... recalcular... para todas mensagens"
         await this.reassignSessions(ticketDbId);
-        // 5. Update Cursor
         if (maxCreatedAt && (!cursor || maxCreatedAt > cursor)) {
             await this.ticketRepo.updateLastImportedMessageCreatedAt(ticketDbId, maxCreatedAt);
         }
     }
     async reassignSessions(ticketId) {
-        // Fetch all sessions for ticket
         const sessions = await this.sessionRepo.listByTicket(ticketId);
-        // Split into closed and open
         const closed = sessions.filter(s => s.type === client_1.SessionType.CLOSED);
-        const open = sessions.find(s => s.type !== client_1.SessionType.CLOSED); // Should be only one or none
-        // Fetch all messages for ticket (lightweight: id, createdAt)
-        // Use raw query or findMany with select if list is huge?
-        // findMany is fine for typical ticket sizes (thousands).
+        const open = sessions.find(s => s.type !== client_1.SessionType.CLOSED);
         const messages = await this.messageRepo.listByTicket(ticketId);
         const updates = [];
-        // "Se startedAt for null (OPEN_WEAK), para não cortar mensagens... ancorar o start"
-        // Logic: min(session.start, createdAt da primeira mensagem do ticket) ...
-        // Note: The logic described in requirements is:
-        // "Ao atribuir mensagens, se a sessão aberta for OPEN_WEAK, definir start efetivo como: min(session.start, createdAt da primeira mensagem do ticket)"
-        // This seems to imply we adjust the start time used for matching.
         let openStartEffective = open?.startedAt;
         if (open && open.type === client_1.SessionType.OPEN_WEAK && messages.length > 0) {
-            // Find first message
-            const firstMsgDate = messages[0].createdAtExternal; // listByTicket is sorted asc
+            const firstMsgDate = messages[0].createdAtExternal;
             if (firstMsgDate < open.startedAt) {
                 openStartEffective = firstMsgDate;
             }
@@ -243,24 +213,18 @@ class TicketImportService {
         for (const msg of messages) {
             let assignedSessionId = null;
             const msgDate = msg.createdAtExternal;
-            // 1. Try CLOSED
-            // start <= msg <= end
             const matchedClosed = closed.find(s => s.startedAt <= msgDate && s.endedAt && msgDate <= s.endedAt);
             if (matchedClosed) {
                 assignedSessionId = matchedClosed.id;
             }
             else if (open && openStartEffective && msgDate >= openStartEffective) {
-                // 2. Try OPEN
                 assignedSessionId = open.id;
             }
-            // 3. Else UNTRACKED (null)
-            // Optimization: only update if changed
             if (msg.sessionId !== assignedSessionId) {
                 updates.push({ messageId: msg.id, sessionId: assignedSessionId });
             }
         }
         if (updates.length > 0) {
-            // Batch update
             await this.messageRepo.updateSessionIdsBatch(updates);
         }
     }

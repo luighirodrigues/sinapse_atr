@@ -26,7 +26,7 @@ Backend de importação de tickets (Multi-Tenant).
 
 ## Endpoints
 
-### Admin (Requer header `Authorization: <ADMIN_TOKEN>`)
+### Admin (Requer header `x-admin-token: <ADMIN_TOKEN>`)
 
 - `GET /clients`: Lista clientes.
 - `POST /clients`: Cria cliente (`slug`, `name`, `apiBaseUrl`, `apiKey`).
@@ -34,9 +34,15 @@ Backend de importação de tickets (Multi-Tenant).
 - `POST /jobs/import`: Inicia importação para todos os clientes ativos.
 - `POST /jobs/import/:slug`: Inicia importação para um cliente específico.
 
-### Público / Legado
+Exemplo:
+```bash
+curl -H "x-admin-token: seu_token" http://localhost:3000/clients
+```
 
-- `GET /tickets/:uuid`: Busca ticket (primeiro encontrado com o UUID externo).
+### Público
+
+- `GET /tickets/:clientSlug/:uuid`: Busca ticket de um cliente específico pelo UUID externo.
+- `GET /tickets/:uuid`: **DEPRECATED**. Retorna erro solicitando o uso da rota com slug.
 - `GET /health`: Healthcheck.
 
 ## Estrutura Multi-Tenant

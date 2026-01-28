@@ -5,12 +5,15 @@ const client_1 = require("../prisma/client");
 class TicketRepository {
     async upsert(data) {
         return client_1.prisma.ticket.upsert({
-            where: { externalUuid: data.externalUuid },
+            where: {
+                clientId_externalUuid: {
+                    clientId: data.clientId,
+                    externalUuid: data.externalUuid,
+                },
+            },
             update: {
                 ...data,
-                updatedAt: undefined, // Let Prisma handle @updatedAt or explicitly set it if needed, but data usually comes with updatedAtExternal
-                // We only update fields that might change. 
-                // Important: preserve lastImportedMessageCreatedAt if it's not in data (which it usually isn't during ticket sync)
+                updatedAt: undefined,
             },
             create: data,
         });
@@ -21,8 +24,24 @@ class TicketRepository {
             data: { lastImportedMessageCreatedAt: date },
         });
     }
-    async findByUuid(uuid) {
+    async findByUuid(clientId, uuid) {
         return client_1.prisma.ticket.findUnique({
+            where: {
+                clientId_externalUuid: {
+                    clientId,
+                    externalUuid: uuid,
+                },
+            },
+            include: {
+                sessions: true,
+                _count: {
+                    select: { messages: true },
+                },
+            },
+        });
+    }
+    async findFirstByExternalUuid(uuid) {
+        return client_1.prisma.ticket.findFirst({
             where: { externalUuid: uuid },
             include: {
                 sessions: true,
