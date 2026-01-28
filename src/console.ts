@@ -1,4 +1,5 @@
 import { TicketImportService } from './services/TicketImportService';
+import { RecreateSessionsService } from './services/RecreateSessionsService';
 import { prisma } from './prisma/client';
 import dotenv from 'dotenv';
 
@@ -6,7 +7,25 @@ dotenv.config();
 
 async function main() {
   const args = process.argv.slice(2);
-  const slug = args[0];
+  
+  // Find arguments regardless of position
+  const isRecreate = args.includes('--recreate');
+  const slug = args.find(arg => arg !== '--recreate' && !arg.startsWith('-'));
+
+  if (isRecreate) {
+    const service = new RecreateSessionsService();
+    try {
+      console.log('Starting recreation service...');
+      await service.runRecreation();
+      console.log('Recreation completed.');
+      process.exit(0);
+    } catch (e) {
+      console.error('Recreation failed:', e);
+      process.exit(1);
+    } finally {
+      await prisma.$disconnect();
+    }
+  }
 
   const service = new TicketImportService();
   try {

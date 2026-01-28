@@ -55,6 +55,7 @@ model Ticket {
   client   SinapseClient @relation(fields: [clientId], references: [id])
   sessions Session[]
   messages Message[]
+  importedTrackings ImportedTracking[]
 
   @@unique([clientId, externalUuid])
   @@index([clientId, updatedAtExternal])
@@ -68,6 +69,26 @@ enum SessionType {
   UNTRACKED
 }
 
+model ImportedTracking {
+  id                String    @id @default(uuid())
+  ticketId          String
+  externalTrackingId Int?
+  createdAtExternal DateTime
+  startedAtExternal DateTime?
+  endedAtExternal   DateTime?
+  processedAt       DateTime?
+  processingVersion String?
+  processingNotes   String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  ticket   Ticket    @relation(fields: [ticketId], references: [id])
+  sessions Session[]
+
+  @@map("imported_trackings")
+  @@index([ticketId])
+}
+
 model Session {
   id                 String      @id @default(uuid())
   ticketId           String
@@ -77,11 +98,15 @@ model Session {
   endedAt            DateTime?
   assignedUserName   String?
   assignedUserEmail  String?
+  source             String?
+  originImportedTrackingId String?
+  processingVersion  String?
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 
-  ticket   Ticket    @relation(fields: [ticketId], references: [id])
-  messages Message[]
+  ticket           Ticket            @relation(fields: [ticketId], references: [id])
+  importedTracking ImportedTracking? @relation(fields: [originImportedTrackingId], references: [id])
+  messages         Message[]
 
   @@unique([ticketId, externalTrackingId])
   @@index([ticketId, startedAt])

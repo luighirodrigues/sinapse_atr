@@ -4,8 +4,9 @@ import { TicketRepository } from '../repositories/TicketRepository';
 import { SessionRepository } from '../repositories/SessionRepository';
 import { MessageRepository } from '../repositories/MessageRepository';
 import { SinapseClientRepository } from '../repositories/SinapseClientRepository';
+import { ImportedTrackingRepository } from '../repositories/ImportedTrackingRepository';
 import { NormalizationService } from './NormalizationService';
-import { SessionType, SinapseClient } from '@prisma/client';
+import { SessionType, SinapseClient, ImportedTracking } from '@prisma/client';
 
 export class TicketImportService {
   private importStateRepo: ImportStateRepository;
@@ -13,6 +14,7 @@ export class TicketImportService {
   private sessionRepo: SessionRepository;
   private messageRepo: MessageRepository;
   private clientRepo: SinapseClientRepository;
+  private importedTrackingRepo: ImportedTrackingRepository;
   private normalization: NormalizationService;
 
   constructor() {
@@ -21,6 +23,7 @@ export class TicketImportService {
     this.sessionRepo = new SessionRepository();
     this.messageRepo = new MessageRepository();
     this.clientRepo = new SinapseClientRepository();
+    this.importedTrackingRepo = new ImportedTrackingRepository();
     this.normalization = new NormalizationService();
   }
 
@@ -119,34 +122,78 @@ export class TicketImportService {
       updatedAtExternal: new Date(externalTicket.updatedAt),
     });
 
-    // 2. Normalize and Upsert Sessions
-    const normalized = this.normalization.normalizeTrackings(externalTicket.ticketTrakings);
-    
-    await this.sessionRepo.upsertMany(normalized.closed.map(s => ({
-      ticketId: ticket.id,
-      externalTrackingId: s.externalTrackingId,
-      type: s.type,
-      startedAt: s.startedAt,
-      endedAt: s.endedAt,
-      assignedUserName: s.assignedUser?.name,
-      assignedUserEmail: s.assignedUser?.email,
+    // 2. Import Raw Trackings (Policy A)
+    const rawTrackings = externalTicket.ticketTrakings || [];
+    await this.importedTrackingRepo.upsertMany(rawTrackings.map(t => ({
+        ticketId: ticket.id,
+        externalTrackingId: t.id,
+        createdAtExternal: new Date(t.createdAt),
+        startedAtExternal: t.startedAt ? new Date(t.startedAt) : null,
+        endedAtExternal: t.finishedAt ? new Date(t.finishedAt) : null,
+        processingVersion: 'v1-policy-a',
     })));
 
+    // Fetch imported trackings to map IDs later
+    const importedTrackings = await this.importedTrackingRepo.findByTicketId(ticket.id);
+    const trackingMap = new Map(importedTrackings.map(it => [it.externalTrackingId, it]));
+
+    // 3. Filter Complete Trackings & Normalize
+    // Complete = has startedAtExternal (even if no endedAtExternal)
+    const completeTrackings = rawTrackings.filter(t => t.startedAt);
+    const normalized = this.normalization.normalizeTrackings(completeTrackings);
+    
+    // 4. Upsert Sessions (Closed)
+    const closedSessionsPayload = normalized.closed.map(s => {
+        const imported = s.externalTrackingId ? trackingMap.get(s.externalTrackingId) : null;
+        return {
+            ticketId: ticket.id,
+            externalTrackingId: s.externalTrackingId,
+            type: s.type,
+            startedAt: s.startedAt,
+            endedAt: s.endedAt,
+            assignedUserName: s.assignedUser?.name,
+            assignedUserEmail: s.assignedUser?.email,
+            source: 'imported_complete',
+            originImportedTrackingId: imported ? imported.id : null,
+            processingVersion: 'v1-policy-a'
+        };
+    });
+
+    await this.sessionRepo.upsertMany(closedSessionsPayload);
+
+    // Mark processed for closed sessions
+    for (const s of closedSessionsPayload) {
+        if (s.originImportedTrackingId) {
+            await this.importedTrackingRepo.markProcessed(s.originImportedTrackingId, 'v1-policy-a');
+        }
+    }
+
+    // 5. Upsert Open Session
     if (normalized.open) {
+      const s = normalized.open;
+      const imported = s.externalTrackingId ? trackingMap.get(s.externalTrackingId) : null;
+      
       await this.sessionRepo.syncOpenSession(ticket.id, {
         ticketId: ticket.id,
-        externalTrackingId: normalized.open.externalTrackingId,
-        type: normalized.open.type,
-        startedAt: normalized.open.startedAt,
-        endedAt: normalized.open.endedAt,
-        assignedUserName: normalized.open.assignedUser?.name,
-        assignedUserEmail: normalized.open.assignedUser?.email,
+        externalTrackingId: s.externalTrackingId,
+        type: s.type,
+        startedAt: s.startedAt,
+        endedAt: s.endedAt,
+        assignedUserName: s.assignedUser?.name,
+        assignedUserEmail: s.assignedUser?.email,
+        source: 'imported_complete',
+        originImportedTrackingId: imported ? imported.id : null,
+        processingVersion: 'v1-policy-a'
       });
+
+      if (imported) {
+          await this.importedTrackingRepo.markProcessed(imported.id, 'v1-policy-a');
+      }
     } else {
       await this.sessionRepo.syncOpenSession(ticket.id, null);
     }
 
-    // 3. Import Messages
+    // 6. Import Messages
     await this.importMessagesForTicket(api, externalTicket.uuid, ticket.id, ticket.lastImportedMessageCreatedAt);
   }
 
