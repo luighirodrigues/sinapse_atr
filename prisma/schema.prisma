@@ -76,6 +76,7 @@ model ImportedTracking {
   createdAtExternal DateTime
   startedAtExternal DateTime?
   endedAtExternal   DateTime?
+  lastRebuildMessageCreatedAt DateTime?
   processedAt       DateTime?
   processingVersion String?
   processingNotes   String?

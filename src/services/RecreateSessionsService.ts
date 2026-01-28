@@ -10,12 +10,42 @@ export class RecreateSessionsService {
   }
 
   async runRecreation() {
-    const unprocessed = await this.importedTrackingRepo.findUnprocessedWeak();
-    console.log(`Found ${unprocessed.length} weak trackings to process.`);
+    console.log('Starting daily rebuild for tickets with new messages...');
 
-    for (const tracking of unprocessed) {
+    // 1. Find imported trackings that need rebuild
+    // We look for trackings where the parent ticket has received messages AFTER the last rebuild
+    // OR where lastRebuildMessageCreatedAt is null.
+    // We focus on "weak" trackings (no external start/end) as per requirements.
+    
+    // We fetch trackings that are "weak" and include the ticket to check dates in JS.
+    const candidates = await prisma.importedTracking.findMany({
+        where: {
+            startedAtExternal: null,
+            endedAtExternal: null,
+            ticket: {
+                lastImportedMessageCreatedAt: { not: null }
+            }
+        },
+        include: {
+            ticket: {
+                select: { lastImportedMessageCreatedAt: true }
+            }
+        }
+    });
+
+    // Cast to any to access lastRebuildMessageCreatedAt if types are not regenerated
+    const toProcess = candidates.filter((t: any) => {
+        if (!t.ticket || !t.ticket.lastImportedMessageCreatedAt) return false;
+        if (!t.lastRebuildMessageCreatedAt) return true;
+        return new Date(t.ticket.lastImportedMessageCreatedAt) > new Date(t.lastRebuildMessageCreatedAt);
+    });
+
+    console.log(`Found ${toProcess.length} weak trackings to process out of ${candidates.length} candidates.`);
+
+    for (const tracking of toProcess) {
         try {
-            await this.processTracking(tracking);
+            // We pass the ticket's last message date to save it after processing
+            await this.processTracking(tracking, (tracking as any).ticket.lastImportedMessageCreatedAt);
             console.log(`Processed tracking ${tracking.id} successfully.`);
         } catch (e) {
             console.error(`Error processing tracking ${tracking.id}:`, e);
@@ -23,11 +53,14 @@ export class RecreateSessionsService {
     }
   }
 
-  private async processTracking(tracking: any) {
+  private async processTracking(tracking: any, ticketLastMsgDate: Date) {
       await prisma.$transaction(async (tx) => {
           // 1. Idempotency: Clear previous sessions/links for this tracking
+          // Ensure we only touch sessions created by recreation logic for this tracking
           const existingSessions = await tx.session.findMany({
-              where: { originImportedTrackingId: tracking.id }
+              where: { 
+                  originImportedTrackingId: tracking.id
+              }
           });
           
           if (existingSessions.length > 0) {
@@ -55,7 +88,11 @@ export class RecreateSessionsService {
           if (messages.length === 0) {
                await tx.importedTracking.update({
                   where: { id: tracking.id },
-                  data: { processedAt: new Date(), processingVersion: 'v1-gap24h-empty' }
+                  data: { 
+                      processedAt: new Date(), 
+                  processingVersion: 'v1-gap24h-empty',
+                  lastRebuildMessageCreatedAt: ticketLastMsgDate
+              }
               });
               return;
           }
@@ -83,16 +120,26 @@ export class RecreateSessionsService {
           if (currentGroup.length > 0) groups.push(currentGroup);
 
           // 4. Create Sessions and Link
+          const now = new Date();
+          
           for (const group of groups) {
               const startMsg = group[0];
               const endMsg = group[group.length - 1];
               
+              const endedAt = new Date(endMsg.createdAtExternal);
+              
+              // RULE: Closed only if 24h passed since endedAt
+              const isClosed = now.getTime() >= endedAt.getTime() + 24 * 60 * 60 * 1000;
+              
+              // Determine type
+              const type = isClosed ? SessionType.CLOSED : SessionType.OPEN_REAL;
+
               const session = await tx.session.create({
                   data: {
                       ticketId: tracking.ticketId,
-                      type: SessionType.CLOSED,
+                      type: type,
                       startedAt: startMsg.createdAtExternal,
-                      endedAt: endMsg.createdAtExternal,
+                      endedAt: endedAt,
                       source: 'recreated',
                       originImportedTrackingId: tracking.id,
                       processingVersion: 'v1-gap24h'
@@ -109,7 +156,11 @@ export class RecreateSessionsService {
           // 5. Update ImportedTracking
           await tx.importedTracking.update({
               where: { id: tracking.id },
-              data: { processedAt: new Date(), processingVersion: 'v1-gap24h' }
+              data: { 
+                  processedAt: new Date(), 
+                  processingVersion: 'v1-gap24h',
+                  lastRebuildMessageCreatedAt: ticketLastMsgDate
+              }
           });
       }, {
           timeout: 20000 

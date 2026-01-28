@@ -8,6 +8,9 @@ dotenv.config();
 async function main() {
   const args = process.argv.slice(2);
   
+  // Debug arguments
+  console.log('Received arguments:', args);
+
   // Find arguments regardless of position
   const isRecreate = args.includes('--recreate');
   const slug = args.find(arg => arg !== '--recreate' && !arg.startsWith('-'));
@@ -15,9 +18,9 @@ async function main() {
   if (isRecreate) {
     const service = new RecreateSessionsService();
     try {
-      console.log('Starting recreation service...');
+      console.log('Starting idempotent rebuild service (checking for new messages)...');
       await service.runRecreation();
-      console.log('Recreation completed.');
+      console.log('Rebuild completed.');
       process.exit(0);
     } catch (e) {
       console.error('Recreation failed:', e);

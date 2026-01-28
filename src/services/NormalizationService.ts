@@ -17,10 +17,12 @@ export class NormalizationService {
       const startedAt = t.startedAt ? new Date(t.startedAt) : new Date(t.createdAt);
       const endedAt = t.finishedAt ? new Date(t.finishedAt) : null;
       let type: SessionType = SessionType.OPEN_WEAK;
+      const now = new Date();
+      const isClosed = endedAt && (now.getTime() >= endedAt.getTime() + 24 * 60 * 60 * 1000);
 
-      if (t.startedAt && t.finishedAt) {
+      if (isClosed) {
         type = SessionType.CLOSED;
-      } else if (t.startedAt && !t.finishedAt) {
+      } else if (t.startedAt) {
         type = SessionType.OPEN_REAL;
       } else {
         type = SessionType.OPEN_WEAK;
