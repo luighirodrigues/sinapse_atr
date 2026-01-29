@@ -39,6 +39,8 @@ export interface ExternalMessage {
   ticketId: number;
   createdAt: string;
   updatedAt: string;
+  generatedByAi?: boolean;
+  sendBySystem?: boolean;
 }
 
 export class ExternalApiService {

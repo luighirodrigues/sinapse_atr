@@ -10,13 +10,17 @@ const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 async function main() {
     const args = process.argv.slice(2);
-    const command = args[0];
-    if (command === '--recreate') {
+    // Debug arguments
+    console.log('Received arguments:', args);
+    // Find arguments regardless of position
+    const isRecreate = args.includes('--recreate');
+    const slug = args.find(arg => arg !== '--recreate' && !arg.startsWith('-'));
+    if (isRecreate) {
         const service = new RecreateSessionsService_1.RecreateSessionsService();
         try {
-            console.log('Starting recreation service...');
+            console.log('Starting idempotent rebuild service (checking for new messages)...');
             await service.runRecreation();
-            console.log('Recreation completed.');
+            console.log('Rebuild completed.');
             process.exit(0);
         }
         catch (e) {
@@ -27,7 +31,6 @@ async function main() {
             await client_1.prisma.$disconnect();
         }
     }
-    const slug = command;
     const service = new TicketImportService_1.TicketImportService();
     try {
         if (slug) {

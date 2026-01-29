@@ -6,7 +6,7 @@ import { MessageRepository } from '../repositories/MessageRepository';
 import { SinapseClientRepository } from '../repositories/SinapseClientRepository';
 import { ImportedTrackingRepository } from '../repositories/ImportedTrackingRepository';
 import { NormalizationService } from './NormalizationService';
-import { SessionType, SinapseClient, ImportedTracking } from '@prisma/client';
+import { SessionType, SinapseClient, ImportedTracking, MessageSenderType } from '@prisma/client';
 
 export class TicketImportService {
   private importStateRepo: ImportStateRepository;
@@ -240,17 +240,24 @@ export class TicketImportService {
       }
 
       if (newMessages.length > 0) {
-        await this.messageRepo.upsertMany(newMessages.map(m => ({
-          ticketId: ticketDbId,
-          externalMessageId: String(m.id),
-          key: m.key,
-          body: m.body,
-          fromMe: m.fromMe,
-          mediaUrl: m.mediaUrl,
-          mediaType: m.mediaType,
-          createdAtExternal: new Date(m.createdAt),
-          updatedAtExternal: new Date(m.updatedAt),
-        })));
+        await this.messageRepo.upsertMany(newMessages.map(m => {
+          let senderType: MessageSenderType = MessageSenderType.HUMAN;
+          if (m.generatedByAi) senderType = MessageSenderType.AI;
+          else if (m.sendBySystem) senderType = MessageSenderType.SYSTEM;
+
+          return {
+            ticketId: ticketDbId,
+            externalMessageId: String(m.id),
+            key: m.key,
+            body: m.body,
+            fromMe: m.fromMe,
+            senderType,
+            mediaUrl: m.mediaUrl,
+            mediaType: m.mediaType,
+            createdAtExternal: new Date(m.createdAt),
+            updatedAtExternal: new Date(m.updatedAt),
+          };
+        }));
       }
 
       if (messages.length < limit) {

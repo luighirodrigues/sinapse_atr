@@ -207,17 +207,25 @@ class TicketImportService {
                 }
             }
             if (newMessages.length > 0) {
-                await this.messageRepo.upsertMany(newMessages.map(m => ({
-                    ticketId: ticketDbId,
-                    externalMessageId: String(m.id),
-                    key: m.key,
-                    body: m.body,
-                    fromMe: m.fromMe,
-                    mediaUrl: m.mediaUrl,
-                    mediaType: m.mediaType,
-                    createdAtExternal: new Date(m.createdAt),
-                    updatedAtExternal: new Date(m.updatedAt),
-                })));
+                await this.messageRepo.upsertMany(newMessages.map(m => {
+                    let senderType = client_1.MessageSenderType.HUMAN;
+                    if (m.generatedByAi)
+                        senderType = client_1.MessageSenderType.AI;
+                    else if (m.sendBySystem)
+                        senderType = client_1.MessageSenderType.SYSTEM;
+                    return {
+                        ticketId: ticketDbId,
+                        externalMessageId: String(m.id),
+                        key: m.key,
+                        body: m.body,
+                        fromMe: m.fromMe,
+                        senderType,
+                        mediaUrl: m.mediaUrl,
+                        mediaType: m.mediaType,
+                        createdAtExternal: new Date(m.createdAt),
+                        updatedAtExternal: new Date(m.updatedAt),
+                    };
+                }));
             }
             if (messages.length < limit) {
                 hasMore = false;

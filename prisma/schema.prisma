@@ -19,6 +19,7 @@ model SinapseClient {
 
   tickets      Ticket[]
   importStates ImportState[]
+  conversationMetrics ConversationMetrics[]
 
   @@map("sinapse_clients")
 }
@@ -122,6 +123,7 @@ model Message {
   key               String?
   body              String
   fromMe            Boolean
+  senderType        MessageSenderType @default(HUMAN)
   mediaUrl          String?
   mediaType         String?
   createdAtExternal DateTime
@@ -135,5 +137,29 @@ model Message {
 
   @@unique([ticketId, externalMessageId])
   @@index([ticketId, createdAtExternal])
+  @@index([ticketId, sessionId, createdAt])
+  @@index([ticketId, sessionId, fromMe, createdAt])
   @@map("messages")
+}
+
+enum MessageSenderType {
+  HUMAN
+  SYSTEM
+  AI
+}
+
+model ConversationMetrics {
+  id                  String   @id @default(uuid())
+  clientId            String
+  sessionId           String
+  firstInboundAt      DateTime @db.Timestamptz
+  firstOutboundAt     DateTime @db.Timestamptz
+  firstResponseTimeMs Int
+  createdAt           DateTime @default(now()) @db.Timestamptz
+
+  client SinapseClient @relation(fields: [clientId], references: [id])
+
+  @@unique([clientId, sessionId])
+  @@index([clientId, firstInboundAt])
+  @@map("conversation_metrics")
 }

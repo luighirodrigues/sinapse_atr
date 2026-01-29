@@ -9,10 +9,12 @@ class NormalizationService {
             const startedAt = t.startedAt ? new Date(t.startedAt) : new Date(t.createdAt);
             const endedAt = t.finishedAt ? new Date(t.finishedAt) : null;
             let type = client_1.SessionType.OPEN_WEAK;
-            if (t.startedAt && t.finishedAt) {
+            const now = new Date();
+            const isClosed = endedAt && (now.getTime() >= endedAt.getTime() + 24 * 60 * 60 * 1000);
+            if (isClosed) {
                 type = client_1.SessionType.CLOSED;
             }
-            else if (t.startedAt && !t.finishedAt) {
+            else if (t.startedAt) {
                 type = client_1.SessionType.OPEN_REAL;
             }
             else {
