@@ -28,6 +28,7 @@ model ImportState {
   id           String   @id @default(uuid())
   key          String
   lastImportAt DateTime @default(now())
+  lastPage     Int?
   clientId     String
 
   client       SinapseClient @relation(fields: [clientId], references: [id])
@@ -44,6 +45,7 @@ model Ticket {
   contactName                  String?
   contactNumber                String?
   contactExternalId            Int?
+  contactId                    BigInt?
   socialConnectionId           Int?
   companyId                    Int?
   createdAtExternal            DateTime?
@@ -54,13 +56,68 @@ model Ticket {
   clientId                     String
 
   client   SinapseClient @relation(fields: [clientId], references: [id])
+  contact  Contact?      @relation(fields: [clientId, contactId], references: [clientId, id])
   sessions Session[]
   messages Message[]
   importedTrackings ImportedTracking[]
 
   @@unique([clientId, externalUuid])
+  @@index([clientId, contactId])
   @@index([clientId, updatedAtExternal])
   @@map("tickets")
+}
+
+model Contact {
+  id                 BigInt
+  clientId           String
+  companyId          BigInt?
+  name               String?
+  number             String?
+  email              String?
+  isGroup            Boolean
+  socialConnectionId BigInt?
+  profilePicUrl      String?
+  createdAtRemote    DateTime?
+  updatedAtRemote    DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  tags    ContactTag[]
+  tickets Ticket[]
+
+  @@id([clientId, id])
+  @@index([clientId, number])
+  @@map("contacts")
+}
+
+model Tag {
+  id        BigInt
+  clientId  String
+  companyId BigInt?
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contacts ContactTag[]
+
+  @@id([clientId, id])
+  @@index([clientId, name])
+  @@map("tags")
+}
+
+model ContactTag {
+  clientId  String
+  contactId BigInt
+  tagId     BigInt
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [clientId, contactId], references: [clientId, id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [clientId, tagId], references: [clientId, id], onDelete: Cascade)
+
+  @@id([clientId, contactId, tagId])
+  @@index([clientId, tagId])
+  @@map("contact_tags")
 }
 
 enum SessionType {

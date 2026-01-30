@@ -16,14 +16,14 @@ async function main() {
   console.log(`API URL: ${apiUrl}`);
 
   const client = await prisma.sinapseClient.upsert({
-    where: { slug: 'sinapse-default' },
+    where: { slug: 'tterrasul' },
     update: {
         apiBaseUrl: apiUrl,
         apiKey: apiKey,
     },
     create: {
-      slug: 'sinapse-default',
-      name: 'Sinapse Default Client',
+      slug: 'tterrasul',
+      name: 'TTerrasul',
       apiBaseUrl: apiUrl,
       apiKey: apiKey,
       isActive: true,

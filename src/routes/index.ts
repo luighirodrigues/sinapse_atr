@@ -3,6 +3,7 @@ import { JobController } from '../controllers/JobController';
 import { TicketController } from '../controllers/TicketController';
 import { ClientController } from '../controllers/ClientController';
 import { KpiController } from '../controllers/KpiController';
+import { AdminController } from '../controllers/AdminController';
 import { requireAdminToken } from '../middlewares/requireAdminToken';
 
 const router = Router();
@@ -10,6 +11,7 @@ const jobController = new JobController();
 const ticketController = new TicketController();
 const clientController = new ClientController();
 const kpiController = new KpiController();
+const adminController = new AdminController();
 
 router.post('/jobs/import', requireAdminToken, (req, res) => jobController.import(req, res));
 router.post('/jobs/import/:slug', requireAdminToken, (req, res) => jobController.import(req, res));
@@ -18,12 +20,22 @@ router.get('/clients', requireAdminToken, (req, res) => clientController.list(re
 router.post('/clients', requireAdminToken, (req, res) => clientController.create(req, res));
 router.patch('/clients/:id', requireAdminToken, (req, res) => clientController.update(req, res));
 
+router.post('/admin/sync/contacts', requireAdminToken, (req, res) =>
+  adminController.syncContacts(req, res)
+);
+
 router.get('/tickets/:clientSlug/:uuid', (req, res) => ticketController.getByClientSlugAndUuid(req, res));
 router.get('/tickets/:uuid', (req, res) => ticketController.get(req, res));
 
 // KPIs
 router.get('/kpis/avg-first-response-time', requireAdminToken, (req, res) => kpiController.getAvgFirstResponseTime(req, res));
 router.post('/kpis/recompute/avg-first-response-time', requireAdminToken, (req, res) => kpiController.recomputeAvgFirstResponseTime(req, res));
+router.get('/kpis/avg-session-duration-by-tag', requireAdminToken, (req, res) =>
+  kpiController.getAvgSessionDurationByTag(req, res)
+);
+router.get('/kpis/top-slowest-sessions-by-tag', requireAdminToken, (req, res) =>
+  kpiController.getTopSlowestSessionsByTag(req, res)
+);
 
 router.get('/health', (req, res) => res.json({ status: 'ok' }));
 

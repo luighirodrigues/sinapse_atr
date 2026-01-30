@@ -8,6 +8,7 @@ const SessionRepository_1 = require("../repositories/SessionRepository");
 const MessageRepository_1 = require("../repositories/MessageRepository");
 const SinapseClientRepository_1 = require("../repositories/SinapseClientRepository");
 const ImportedTrackingRepository_1 = require("../repositories/ImportedTrackingRepository");
+const ContactRepository_1 = require("../repositories/ContactRepository");
 const NormalizationService_1 = require("./NormalizationService");
 const client_1 = require("@prisma/client");
 class TicketImportService {
@@ -18,6 +19,7 @@ class TicketImportService {
         this.messageRepo = new MessageRepository_1.MessageRepository();
         this.clientRepo = new SinapseClientRepository_1.SinapseClientRepository();
         this.importedTrackingRepo = new ImportedTrackingRepository_1.ImportedTrackingRepository();
+        this.contactRepo = new ContactRepository_1.ContactRepository();
         this.normalization = new NormalizationService_1.NormalizationService();
     }
     async runImport(slug) {
@@ -91,6 +93,18 @@ class TicketImportService {
         console.log(`[${client.slug}] Import finished. Processed ${processedCount} tickets.`);
     }
     async processTicket(clientId, api, externalTicket) {
+        const contactRemoteId = externalTicket.contact?.id;
+        const contactId = contactRemoteId != null ? BigInt(String(contactRemoteId)) : undefined;
+        if (contactId !== undefined) {
+            await this.contactRepo.upsertMinimal({
+                clientId,
+                id: contactId,
+                name: externalTicket.contact?.name,
+                number: externalTicket.contact?.number,
+                email: externalTicket.contact?.email,
+                profilePicUrl: externalTicket.contact?.profilePicUrl,
+            });
+        }
         // 1. Upsert Ticket
         const ticket = await this.ticketRepo.upsert({
             externalUuid: externalTicket.uuid,
@@ -99,6 +113,7 @@ class TicketImportService {
             contactName: externalTicket.contact?.name,
             contactNumber: externalTicket.contact?.number,
             contactExternalId: externalTicket.contact?.id,
+            contactId,
             companyId: externalTicket.companyId,
             createdAtExternal: new Date(externalTicket.createdAt),
             updatedAtExternal: new Date(externalTicket.updatedAt),

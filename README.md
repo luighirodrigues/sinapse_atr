@@ -26,24 +26,45 @@ Backend de importação de tickets (Multi-Tenant).
 
 ## Endpoints
 
+Todos os endpoints abaixo são servidos com prefixo `/api`.
+
 ### Admin (Requer header `x-admin-token: <ADMIN_TOKEN>`)
 
-- `GET /clients`: Lista clientes.
-- `POST /clients`: Cria cliente (`slug`, `name`, `apiBaseUrl`, `apiKey`).
-- `PATCH /clients/:id`: Atualiza cliente.
-- `POST /jobs/import`: Inicia importação para todos os clientes ativos.
-- `POST /jobs/import/:slug`: Inicia importação para um cliente específico.
+- `GET /api/clients`: Lista clientes.
+- `POST /api/clients`: Cria cliente (`slug`, `name`, `apiBaseUrl`, `apiKey`).
+- `PATCH /api/clients/:id`: Atualiza cliente.
+- `POST /api/jobs/import`: Inicia importação para todos os clientes ativos.
+- `POST /api/jobs/import/:slug`: Inicia importação para um cliente específico.
 
 Exemplo:
 ```bash
-curl -H "x-admin-token: seu_token" http://localhost:3000/clients
+curl -H "x-admin-token: seu_token" http://localhost:3000/api/clients
+```
+
+### KPIs (Requer header `x-admin-token: <ADMIN_TOKEN>`)
+
+- `GET /api/kpis/top-slowest-sessions-by-tag`: Top N atendimentos mais lentos por tag (ou global).
+
+Exemplos:
+```bash
+# Global
+curl -H "x-admin-token: seu_token" \
+  "http://localhost:3000/api/kpis/top-slowest-sessions-by-tag?clientSlug=corz&from=2026-01-01&to=2026-01-31&limit=10"
+
+# Por tag (case-insensitive)
+curl -H "x-admin-token: seu_token" \
+  "http://localhost:3000/api/kpis/top-slowest-sessions-by-tag?clientSlug=corz&from=2026-01-01&to=2026-01-31&tag=interno&limit=10"
+
+# Sem retornar contactTags
+curl -H "x-admin-token: seu_token" \
+  "http://localhost:3000/api/kpis/top-slowest-sessions-by-tag?clientSlug=corz&from=2026-01-01&to=2026-01-31&includeTags=false"
 ```
 
 ### Público
 
-- `GET /tickets/:clientSlug/:uuid`: Busca ticket de um cliente específico pelo UUID externo.
-- `GET /tickets/:uuid`: **DEPRECATED**. Retorna erro solicitando o uso da rota com slug.
-- `GET /health`: Healthcheck.
+- `GET /api/tickets/:clientSlug/:uuid`: Busca ticket de um cliente específico pelo UUID externo.
+- `GET /api/tickets/:uuid`: **DEPRECATED**. Retorna erro solicitando o uso da rota com slug.
+- `GET /api/health`: Healthcheck.
 
 ## Estrutura Multi-Tenant
 

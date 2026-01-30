@@ -5,6 +5,7 @@ import { SessionRepository } from '../repositories/SessionRepository';
 import { MessageRepository } from '../repositories/MessageRepository';
 import { SinapseClientRepository } from '../repositories/SinapseClientRepository';
 import { ImportedTrackingRepository } from '../repositories/ImportedTrackingRepository';
+import { ContactRepository } from '../repositories/ContactRepository';
 import { NormalizationService } from './NormalizationService';
 import { SessionType, SinapseClient, ImportedTracking, MessageSenderType } from '@prisma/client';
 
@@ -15,6 +16,7 @@ export class TicketImportService {
   private messageRepo: MessageRepository;
   private clientRepo: SinapseClientRepository;
   private importedTrackingRepo: ImportedTrackingRepository;
+  private contactRepo: ContactRepository;
   private normalization: NormalizationService;
 
   constructor() {
@@ -24,6 +26,7 @@ export class TicketImportService {
     this.messageRepo = new MessageRepository();
     this.clientRepo = new SinapseClientRepository();
     this.importedTrackingRepo = new ImportedTrackingRepository();
+    this.contactRepo = new ContactRepository();
     this.normalization = new NormalizationService();
   }
 
@@ -109,6 +112,20 @@ export class TicketImportService {
   }
 
   private async processTicket(clientId: string, api: ExternalApiService, externalTicket: ExternalTicket) {
+    const contactRemoteId = externalTicket.contact?.id;
+    const contactId = contactRemoteId != null ? BigInt(String(contactRemoteId)) : undefined;
+
+    if (contactId !== undefined) {
+      await this.contactRepo.upsertMinimal({
+        clientId,
+        id: contactId,
+        name: externalTicket.contact?.name,
+        number: externalTicket.contact?.number,
+        email: externalTicket.contact?.email,
+        profilePicUrl: externalTicket.contact?.profilePicUrl,
+      });
+    }
+
     // 1. Upsert Ticket
     const ticket = await this.ticketRepo.upsert({
       externalUuid: externalTicket.uuid,
@@ -117,6 +134,7 @@ export class TicketImportService {
       contactName: externalTicket.contact?.name,
       contactNumber: externalTicket.contact?.number,
       contactExternalId: externalTicket.contact?.id,
+      contactId,
       companyId: externalTicket.companyId,
       createdAtExternal: new Date(externalTicket.createdAt),
       updatedAtExternal: new Date(externalTicket.updatedAt),

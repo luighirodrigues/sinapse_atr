@@ -8,6 +8,7 @@ const envSchema = z.object({
   IMPORT_START_AT: z.string().trim().refine((val) => !isNaN(Date.parse(val)), {
     message: 'Invalid date format for IMPORT_START_AT',
   }),
+  EXTERNAL_API_REQUESTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).default(50),
   PORT: z.string().default('3000').transform((val) => parseInt(val, 10)),
   ADMIN_TOKEN: z.string().trim().min(1, "ADMIN_TOKEN is required"),
 });
