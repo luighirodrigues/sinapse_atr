@@ -131,10 +131,9 @@ class TicketImportService {
         // Fetch imported trackings to map IDs later
         const importedTrackings = await this.importedTrackingRepo.findByTicketId(ticket.id);
         const trackingMap = new Map(importedTrackings.map(it => [it.externalTrackingId, it]));
-        // 3. Filter Complete Trackings & Normalize
-        // Complete = has startedAtExternal (even if no endedAtExternal)
-        const completeTrackings = rawTrackings.filter(t => t.startedAt);
-        const normalized = this.normalization.normalizeTrackings(completeTrackings);
+        // 3. Normalize Trackings
+        // We must include OPEN_WEAK trackings (without startedAt) so the open session can be derived from createdAt.
+        const normalized = this.normalization.normalizeTrackings(rawTrackings);
         // 4. Upsert Sessions (Closed)
         const closedSessionsPayload = normalized.closed.map(s => {
             const imported = s.externalTrackingId ? trackingMap.get(s.externalTrackingId) : null;
