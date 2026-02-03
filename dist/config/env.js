@@ -15,5 +15,7 @@ const envSchema = zod_1.z.object({
     EXTERNAL_API_REQUESTS_PER_MINUTE: zod_1.z.coerce.number().int().min(1).max(60).default(50),
     PORT: zod_1.z.string().default('3000').transform((val) => parseInt(val, 10)),
     ADMIN_TOKEN: zod_1.z.string().trim().min(1, "ADMIN_TOKEN is required"),
+    OPENAI_API_KEY: zod_1.z.string().trim().min(1).optional(),
+    OPENAI_MODEL: zod_1.z.string().trim().min(1).optional(),
 });
 exports.env = envSchema.parse(process.env);

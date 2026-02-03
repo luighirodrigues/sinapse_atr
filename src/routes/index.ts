@@ -4,6 +4,8 @@ import { TicketController } from '../controllers/TicketController';
 import { ClientController } from '../controllers/ClientController';
 import { KpiController } from '../controllers/KpiController';
 import { AdminController } from '../controllers/AdminController';
+import { AnalysisAdminController } from '../controllers/AnalysisAdminController';
+import { AnalysisTenantController } from '../controllers/AnalysisTenantController';
 import { requireAdminToken } from '../middlewares/requireAdminToken';
 
 const router = Router();
@@ -12,6 +14,8 @@ const ticketController = new TicketController();
 const clientController = new ClientController();
 const kpiController = new KpiController();
 const adminController = new AdminController();
+const analysisAdminController = new AnalysisAdminController();
+const analysisTenantController = new AnalysisTenantController();
 
 router.post('/jobs/import', requireAdminToken, (req, res) => jobController.import(req, res));
 router.post('/jobs/import/:slug', requireAdminToken, (req, res) => jobController.import(req, res));
@@ -22,6 +26,29 @@ router.patch('/clients/:id', requireAdminToken, (req, res) => clientController.u
 
 router.post('/admin/sync/contacts', requireAdminToken, (req, res) =>
   adminController.syncContacts(req, res)
+);
+
+router.post('/admin/:clientSlug/analysis-scripts', requireAdminToken, (req, res) =>
+  analysisAdminController.createScript(req, res)
+);
+router.get('/admin/:clientSlug/analysis-scripts', requireAdminToken, (req, res) =>
+  analysisAdminController.listScripts(req, res)
+);
+router.post('/admin/:clientSlug/analysis-scripts/:scriptKey/activate', requireAdminToken, (req, res) =>
+  analysisAdminController.activateScript(req, res)
+);
+router.post('/admin/:clientSlug/session-analyses/run', requireAdminToken, (req, res) =>
+  analysisAdminController.runSessionAnalyses(req, res)
+);
+
+router.get('/tenant/:clientSlug/session-analyses/summary', (req, res) =>
+  analysisTenantController.getSessionAnalysesSummary(req, res)
+);
+router.get('/tenant/:clientSlug/session-analyses/ranking', (req, res) =>
+  analysisTenantController.getSessionAnalysesRanking(req, res)
+);
+router.get('/tenant/:clientSlug/session-analyses/details', (req, res) =>
+  analysisTenantController.getSessionAnalysesDetails(req, res)
 );
 
 router.get('/tickets/:clientSlug/:uuid', (req, res) => ticketController.getByClientSlugAndUuid(req, res));

@@ -166,6 +166,7 @@ model Session {
   ticket           Ticket            @relation(fields: [ticketId], references: [id])
   importedTracking ImportedTracking? @relation(fields: [originImportedTrackingId], references: [id])
   messages         Message[]
+  analyses         SessionAnalysis[]
 
   @@unique([ticketId, externalTrackingId])
   @@index([ticketId, startedAt])
@@ -197,6 +198,51 @@ model Message {
   @@index([ticketId, sessionId, createdAt])
   @@index([ticketId, sessionId, fromMe, createdAt])
   @@map("messages")
+}
+
+model AnalysisScript {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId    String
+  scriptKey   String
+  version     Int      @default(1)
+  name        String
+  description String?
+  scriptText  String
+  topics      Json     @default(dbgenerated("'[]'::jsonb"))
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @default(now()) @db.Timestamptz
+
+  @@unique([clientId, scriptKey, version], map: "uq_analysis_scripts")
+  @@index([clientId, scriptKey, isActive], map: "ix_analysis_scripts_client_key_active")
+  @@map("analysis_scripts")
+}
+
+model SessionAnalysis {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId            String
+  sessionId           String
+  scriptKey           String
+  scriptVersion       Int
+  analysisVersionTag  String   @default("v1")
+  model               String?
+  promptHash          String?
+  status              String   @default("pending")
+  startedAt           DateTime? @db.Timestamptz
+  processedAt         DateTime? @db.Timestamptz
+  retryCount          Int      @default(0)
+  nextRetryAt         DateTime? @db.Timestamptz
+  error               String?
+  report              Json?
+  createdAt           DateTime @default(now()) @db.Timestamptz
+  updatedAt           DateTime @default(now()) @db.Timestamptz
+
+  session             Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, scriptKey, scriptVersion, analysisVersionTag], map: "uq_session_analysis")
+  @@index([clientId, status, nextRetryAt], map: "ix_session_analyses_queue")
+  @@index([sessionId, createdAt(sort: Desc)], map: "ix_session_analyses_session")
+  @@map("session_analyses")
 }
 
 enum MessageSenderType {
