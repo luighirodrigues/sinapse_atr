@@ -15,6 +15,28 @@ function clampInt(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
+function isNonEmptyQueryValue(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (Array.isArray(value)) return isNonEmptyQueryValue(value[0]);
+  if (typeof value === 'string') return value.trim() !== '';
+  return true;
+}
+
+function parseOptionalDateBoundary(value: unknown, kind: 'start' | 'end'): Date | null {
+  if (value === undefined || value === null) return null;
+  if (Array.isArray(value)) return parseOptionalDateBoundary(value[0], kind);
+  if (typeof value !== 'string') return null;
+  const s = value.trim();
+  if (!s) return null;
+
+  const dateOnlyMatch = /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const d = dateOnlyMatch
+    ? new Date(kind === 'start' ? `${s}T00:00:00.000Z` : `${s}T23:59:59.999Z`)
+    : new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
 export class AnalysisTenantController {
   private clientRepo: SinapseClientRepository;
 
@@ -69,9 +91,24 @@ export class AnalysisTenantController {
         typeof req.query.scriptKey === 'string' && req.query.scriptKey.trim() ? req.query.scriptKey.trim() : null;
       const requestedScriptVersion = parseOptionalInt(req.query.scriptVersion);
 
-      const fromDays = clampInt(parseOptionalInt(req.query.fromDays) ?? 30, 1, 365);
       const now = new Date();
-      const from = new Date(now.getTime() - fromDays * 24 * 60 * 60 * 1000);
+      const fromDaysParam = clampInt(parseOptionalInt(req.query.fromDays) ?? 30, 1, 365);
+
+      const hasStartDate = isNonEmptyQueryValue(req.query.startDate);
+      const hasEndDate = isNonEmptyQueryValue(req.query.endDate);
+      const startDate = parseOptionalDateBoundary(req.query.startDate, 'start');
+      const endDate = parseOptionalDateBoundary(req.query.endDate, 'end');
+
+      if (hasStartDate && !startDate) return res.status(400).json({ error: 'Invalid query param: startDate' });
+      if (hasEndDate && !endDate) return res.status(400).json({ error: 'Invalid query param: endDate' });
+
+      const to = endDate ?? now;
+      const from = startDate ?? new Date(to.getTime() - fromDaysParam * 24 * 60 * 60 * 1000);
+      if (from.getTime() > to.getTime()) return res.status(400).json({ error: 'Invalid date range: startDate > endDate' });
+
+      const windowMs = to.getTime() - from.getTime();
+      if (windowMs > 365 * 24 * 60 * 60 * 1000) return res.status(400).json({ error: 'Date range too large (max 365 days)' });
+      const fromDays = clampInt(Math.max(1, Math.ceil(windowMs / (24 * 60 * 60 * 1000))), 1, 365);
 
       const combo = await this.resolveCombo({
         clientId: client.id,
@@ -85,7 +122,7 @@ export class AnalysisTenantController {
           clientId: client.id,
           clientSlug,
           combo: null,
-          window: { from: from.toISOString(), to: now.toISOString(), fromDays },
+          window: { from: from.toISOString(), to: to.toISOString(), fromDays },
           queue: { pending: 0, processing: 0, failedRetryable: 0, failedPermanent: 0 },
           results: {
             done: 0,
@@ -133,37 +170,48 @@ export class AnalysisTenantController {
             WHERE sa."status" = 'done'
               AND sa."processedAt" IS NOT NULL
               AND sa."processedAt" >= ${from}
+              AND sa."processedAt" <= ${to}
           )::int AS done,
           AVG(NULLIF((sa."report"->>'overallScore')::int, NULL)) FILTER (
             WHERE sa."status" = 'done'
               AND sa."processedAt" IS NOT NULL
               AND sa."processedAt" >= ${from}
+              AND sa."processedAt" <= ${to}
           ) AS avg_overall_score,
           COUNT(*) FILTER (
             WHERE sa."status" = 'done'
               AND sa."processedAt" IS NOT NULL
               AND sa."processedAt" >= ${from}
+              AND sa."processedAt" <= ${to}
               AND sa."report"->>'temperature' = 'cold'
           )::int AS temp_cold,
           COUNT(*) FILTER (
             WHERE sa."status" = 'done'
               AND sa."processedAt" IS NOT NULL
               AND sa."processedAt" >= ${from}
+              AND sa."processedAt" <= ${to}
               AND sa."report"->>'temperature' = 'neutral'
           )::int AS temp_neutral,
           COUNT(*) FILTER (
             WHERE sa."status" = 'done'
               AND sa."processedAt" IS NOT NULL
               AND sa."processedAt" >= ${from}
+              AND sa."processedAt" <= ${to}
               AND sa."report"->>'temperature' = 'warm'
           )::int AS temp_warm,
           COUNT(*) FILTER (
             WHERE sa."status" = 'done'
               AND sa."processedAt" IS NOT NULL
               AND sa."processedAt" >= ${from}
+              AND sa."processedAt" <= ${to}
               AND sa."report"->>'temperature' = 'hot'
           )::int AS temp_hot,
-          MAX(sa."processedAt") FILTER (WHERE sa."status" = 'done') AS last_processed_at
+          MAX(sa."processedAt") FILTER (
+            WHERE sa."status" = 'done'
+              AND sa."processedAt" IS NOT NULL
+              AND sa."processedAt" >= ${from}
+              AND sa."processedAt" <= ${to}
+          ) AS last_processed_at
         FROM public.session_analyses sa
         WHERE sa."clientId" = ${client.id}
           AND sa."scriptKey" = ${combo.scriptKey}
@@ -175,7 +223,7 @@ export class AnalysisTenantController {
         clientId: client.id,
         clientSlug,
         combo,
-        window: { from: from.toISOString(), to: now.toISOString(), fromDays },
+        window: { from: from.toISOString(), to: to.toISOString(), fromDays },
         queue: {
           pending: Number(queueRow?.pending ?? 0),
           processing: Number(queueRow?.processing ?? 0),
@@ -226,10 +274,25 @@ export class AnalysisTenantController {
       });
       if (!combo) return res.status(404).json({ error: 'No active analysis script configured for this client' });
 
-      const fromDays = clampInt(parseOptionalInt(req.query.fromDays) ?? 30, 1, 365);
       const limit = clampInt(parseOptionalInt(req.query.limit) ?? 10, 1, 200);
       const now = new Date();
-      const from = new Date(now.getTime() - fromDays * 24 * 60 * 60 * 1000);
+      const fromDaysParam = clampInt(parseOptionalInt(req.query.fromDays) ?? 30, 1, 365);
+
+      const hasStartDate = isNonEmptyQueryValue(req.query.startDate);
+      const hasEndDate = isNonEmptyQueryValue(req.query.endDate);
+      const startDate = parseOptionalDateBoundary(req.query.startDate, 'start');
+      const endDate = parseOptionalDateBoundary(req.query.endDate, 'end');
+
+      if (hasStartDate && !startDate) return res.status(400).json({ error: 'Invalid query param: startDate' });
+      if (hasEndDate && !endDate) return res.status(400).json({ error: 'Invalid query param: endDate' });
+
+      const to = endDate ?? now;
+      const from = startDate ?? new Date(to.getTime() - fromDaysParam * 24 * 60 * 60 * 1000);
+      if (from.getTime() > to.getTime()) return res.status(400).json({ error: 'Invalid date range: startDate > endDate' });
+
+      const windowMs = to.getTime() - from.getTime();
+      if (windowMs > 365 * 24 * 60 * 60 * 1000) return res.status(400).json({ error: 'Date range too large (max 365 days)' });
+      const fromDays = clampInt(Math.max(1, Math.ceil(windowMs / (24 * 60 * 60 * 1000))), 1, 365);
 
       const rows = await prisma.$queryRaw<
         Array<{
@@ -266,6 +329,7 @@ export class AnalysisTenantController {
           AND sa."status" = 'done'
           AND sa."processedAt" IS NOT NULL
           AND sa."processedAt" >= ${from}
+          AND sa."processedAt" <= ${to}
         ORDER BY "overallScore" ASC NULLS LAST, sa."processedAt" DESC
         LIMIT ${limit}
       `;
@@ -274,7 +338,7 @@ export class AnalysisTenantController {
         clientId: client.id,
         clientSlug,
         combo,
-        window: { from: from.toISOString(), to: now.toISOString(), fromDays },
+        window: { from: from.toISOString(), to: to.toISOString(), fromDays },
         limit,
         items: rows.map((r) => ({
           sessionAnalysisId: r.sessionAnalysisId,

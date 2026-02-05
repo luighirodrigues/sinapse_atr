@@ -306,7 +306,7 @@ Retorna um resumo agregado para alimentar o card do dashboard:
   - se não vier `scriptKey`: usa o **script ativo mais recentemente atualizado**
 - Agrega contadores da fila para a combinação:
   - `pending`, `processing`, `failedRetryable` (`retryCount < 4`), `failedPermanent` (`retryCount >= 4`)
-- Agrega resultados recentes (janela `fromDays`) para a combinação:
+- Agrega resultados recentes (janela de datas) para a combinação:
   - `done`, `avgOverallScore`, contagem por `temperature`, `lastProcessedAt`
 
 **Query params**
@@ -314,7 +314,9 @@ Retorna um resumo agregado para alimentar o card do dashboard:
 - `analysisVersionTag` (opcional, default `"v1"`)
 - `scriptKey` (opcional)
 - `scriptVersion` (opcional; int)
-- `fromDays` (opcional; int `1..365`, default `30`)
+- `startDate` (opcional; ISO; aceita `YYYY-MM-DD` ou `YYYY-MM-DDTHH:mm:ss.sssZ`)
+- `endDate` (opcional; ISO; aceita `YYYY-MM-DD` ou `YYYY-MM-DDTHH:mm:ss.sssZ`)
+- `fromDays` (opcional; int `1..365`, default `30`; usado quando `startDate/endDate` não são informados)
 
 **Resposta (200)**
 
@@ -341,21 +343,23 @@ Se o tenant não tiver nenhuma rubrica ativa (`analysis_scripts.isActive=true`),
 **Exemplo (curl)**
 
 ```bash
-curl "http://localhost:3000/api/tenant/MEU_SLUG/session-analyses/summary?fromDays=30"
+curl "http://localhost:3000/api/tenant/MEU_SLUG/session-analyses/summary?startDate=2026-01-01&endDate=2026-01-31"
 ```
 
 ### 2) Ranking (lista do dashboard)
 
 `GET /api/tenant/:clientSlug/session-analyses/ranking`
 
-Retorna uma lista das análises `done` mais “críticas” (ordenadas por `overallScore` asc) dentro da janela `fromDays`.
+Retorna uma lista das análises `done` mais “críticas” (ordenadas por `overallScore` asc) dentro da janela de datas.
 
 **Query params**
 
 - `analysisVersionTag` (opcional, default `"v1"`)
 - `scriptKey` (opcional)
 - `scriptVersion` (opcional; int)
-- `fromDays` (opcional; int `1..365`, default `30`)
+- `startDate` (opcional; ISO; aceita `YYYY-MM-DD` ou `YYYY-MM-DDTHH:mm:ss.sssZ`)
+- `endDate` (opcional; ISO; aceita `YYYY-MM-DD` ou `YYYY-MM-DDTHH:mm:ss.sssZ`)
+- `fromDays` (opcional; int `1..365`, default `30`; usado quando `startDate/endDate` não são informados)
 - `limit` (opcional; int `1..200`, default `10`)
 
 **Resposta (200)**
@@ -385,7 +389,7 @@ Retorna uma lista das análises `done` mais “críticas” (ordenadas por `over
 **Exemplo (curl)**
 
 ```bash
-curl "http://localhost:3000/api/tenant/MEU_SLUG/session-analyses/ranking?limit=10&fromDays=30"
+curl "http://localhost:3000/api/tenant/MEU_SLUG/session-analyses/ranking?limit=10&startDate=2026-01-01&endDate=2026-01-31"
 ```
 
 ### 3) Details (detalhe do relatório)
