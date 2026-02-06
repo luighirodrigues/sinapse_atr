@@ -42,7 +42,6 @@ class AvgFirstResponseTimeService {
         WHERE m."fromMe" = true
           AND m."senderType" IN ('HUMAN', 'AI')
           AND m."createdAtExternal" > i."firstInboundAt"
-          AND m."createdAtExternal" <= i."firstInboundAt" + INTERVAL '24 hours'
         GROUP BY m."sessionId"
       )
       SELECT
@@ -134,7 +133,6 @@ class AvgFirstResponseTimeService {
           WHERE m."fromMe" = true
             AND m."senderType" IN ('HUMAN', 'AI')
             AND m."createdAtExternal" > i."firstInboundAt"
-            AND m."createdAtExternal" <= i."firstInboundAt" + INTERVAL '24 hours'
           GROUP BY m."sessionId"
         ) o ON i."sessionId" = o."sessionId"
       `;
@@ -184,7 +182,6 @@ class AvgFirstResponseTimeService {
         WHERE m."fromMe" = true
           AND m."senderType" IN ('HUMAN', 'AI')
           AND m."createdAtExternal" > i."firstInboundAt"
-          AND m."createdAtExternal" <= i."firstInboundAt" + INTERVAL '24 hours'
         GROUP BY m."sessionId"
       ) o ON i."sessionId" = o."sessionId"
       GROUP BY 1
