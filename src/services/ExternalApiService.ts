@@ -12,6 +12,7 @@ export interface ExternalTicket {
   updatedAt: string;
   createdAt: string;
   status: string;
+  isGroup?: boolean | null;
   contact: {
     id: number;
     name: string;

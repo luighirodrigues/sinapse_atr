@@ -38,6 +38,7 @@ export class AvgSessionDurationByTagService {
         FROM "sessions" s
         JOIN "tickets" t ON s."ticketId" = t."id"
         WHERE t."clientId" = ${clientId}
+          AND t."isGroup" = false
           AND s."endedAt" IS NOT NULL
           AND s."startedAt" >= ${startDate}
           AND s."startedAt" <= ${endDate}
@@ -88,4 +89,3 @@ export class AvgSessionDurationByTagService {
     return result;
   }
 }
-

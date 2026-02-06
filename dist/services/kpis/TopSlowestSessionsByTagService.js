@@ -27,6 +27,7 @@ class TopSlowestSessionsByTagService {
                 ON c."clientId" = t."clientId"
                AND c."id" = t."contactId"
               WHERE t."clientId" = ${clientId}
+                AND t."isGroup" = false
                 AND s."endedAt" IS NOT NULL
                 AND s."startedAt" >= ${startDate}
                 AND s."startedAt" < ${endDate}
@@ -80,6 +81,7 @@ class TopSlowestSessionsByTagService {
                 ON c."clientId" = t."clientId"
                AND c."id" = t."contactId"
               WHERE t."clientId" = ${clientId}
+                AND t."isGroup" = false
                 AND s."endedAt" IS NOT NULL
                 AND s."startedAt" >= ${startDate}
                 AND s."startedAt" < ${endDate}
@@ -138,6 +140,7 @@ class TopSlowestSessionsByTagService {
             ON c."clientId" = t."clientId"
            AND c."id" = t."contactId"
           WHERE t."clientId" = ${clientId}
+            AND t."isGroup" = false
             AND s."endedAt" IS NOT NULL
             AND s."startedAt" >= ${startDate}
             AND s."startedAt" < ${endDate}
@@ -174,6 +177,7 @@ class TopSlowestSessionsByTagService {
             ON c."clientId" = t."clientId"
            AND c."id" = t."contactId"
           WHERE t."clientId" = ${clientId}
+            AND t."isGroup" = false
             AND s."endedAt" IS NOT NULL
             AND s."startedAt" >= ${startDate}
             AND s."startedAt" < ${endDate}

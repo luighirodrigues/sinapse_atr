@@ -110,6 +110,7 @@ class TicketImportService {
             externalUuid: externalTicket.uuid,
             clientId: clientId,
             status: externalTicket.status,
+            isGroup: Boolean(externalTicket.isGroup),
             contactName: externalTicket.contact?.name,
             contactNumber: externalTicket.contact?.number,
             contactExternalId: externalTicket.contact?.id,

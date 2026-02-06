@@ -23,6 +23,7 @@ class AvgFirstResponseTimeService {
         FROM "messages" m
         JOIN "tickets" t ON m."ticketId" = t."id"
         WHERE t."clientId" = ${clientId}
+          AND t."isGroup" = false
           AND m."sessionId" IS NOT NULL
           AND m."fromMe" = false
           AND m."senderType" = 'HUMAN'
@@ -107,6 +108,7 @@ class AvgFirstResponseTimeService {
           FROM "messages" m
           JOIN "tickets" t ON m."ticketId" = t."id"
           WHERE t."clientId" = ${clientId}
+            AND t."isGroup" = false
             AND m."sessionId" IS NOT NULL
             AND m."fromMe" = false
             AND m."senderType" = 'HUMAN'
@@ -116,7 +118,7 @@ class AvgFirstResponseTimeService {
           SELECT *
           FROM Inbounds
           WHERE "firstInboundAt" >= ${startDate} AND "firstInboundAt" <= ${endDate}
-        ),
+        )
         SELECT
           AVG(
             EXTRACT(EPOCH FROM (o."firstOutboundAt" - i."firstInboundAt")) * 1000
@@ -155,6 +157,7 @@ class AvgFirstResponseTimeService {
         FROM "messages" m
         JOIN "tickets" t ON m."ticketId" = t."id"
         WHERE t."clientId" = ${clientId}
+          AND t."isGroup" = false
           AND m."sessionId" IS NOT NULL
           AND m."fromMe" = false
           AND m."senderType" = 'HUMAN'

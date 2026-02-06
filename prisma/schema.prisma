@@ -42,6 +42,7 @@ model Ticket {
   externalUuid                 String
   externalTicketId             Int?
   status                       String?
+  isGroup                      Boolean   @default(false)
   contactName                  String?
   contactNumber                String?
   contactExternalId            Int?
@@ -63,6 +64,7 @@ model Ticket {
 
   @@unique([clientId, externalUuid])
   @@index([clientId, contactId])
+  @@index([clientId, isGroup])
   @@index([clientId, updatedAtExternal])
   @@map("tickets")
 }
