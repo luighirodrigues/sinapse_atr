@@ -173,7 +173,8 @@ export class TicketImportService {
             assignedUserEmail: s.assignedUser?.email,
             source: 'imported_complete',
             originImportedTrackingId: imported ? imported.id : null,
-            processingVersion: 'v1-policy-a'
+            processingVersion: 'v1-policy-a',
+            createdAtExternal: imported?.createdAtExternal ?? undefined
         };
     });
 
@@ -201,7 +202,8 @@ export class TicketImportService {
         assignedUserEmail: s.assignedUser?.email,
         source: 'imported_complete',
         originImportedTrackingId: imported ? imported.id : null,
-        processingVersion: 'v1-policy-a'
+        processingVersion: 'v1-policy-a',
+        createdAtExternal: imported?.createdAtExternal ?? undefined
       });
 
       if (imported) {

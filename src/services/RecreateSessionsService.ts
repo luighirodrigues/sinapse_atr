@@ -142,7 +142,8 @@ export class RecreateSessionsService {
                       endedAt: endedAt,
                       source: 'recreated',
                       originImportedTrackingId: tracking.id,
-                      processingVersion: 'v1-gap24h'
+                      processingVersion: 'v1-gap24h',
+                      createdAtExternal: tracking.createdAtExternal
                   }
               });
 

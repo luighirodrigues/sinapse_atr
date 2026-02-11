@@ -162,6 +162,7 @@ model Session {
   source             String?
   originImportedTrackingId String?
   processingVersion  String?
+  createdAtExternal  DateTime?
   createdAt          DateTime    @default(now())
   updatedAt          DateTime    @updatedAt
 

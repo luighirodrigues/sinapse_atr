@@ -8,6 +8,7 @@
     "start": "node dist/server.js",
     "import": "ts-node src/console.ts",
     "import:recreate": "npx ts-node src/console.ts --recreate",
+    "backfill:session-created-at-external": "npx ts-node scripts/backfill_session_created_at_external.ts",
     "seed:client": "ts-node seed_client.ts",
     "prisma:migrate": "prisma migrate dev",
     "prisma:generate": "prisma generate",
