@@ -148,7 +148,8 @@ class TicketImportService {
                 assignedUserEmail: s.assignedUser?.email,
                 source: 'imported_complete',
                 originImportedTrackingId: imported ? imported.id : null,
-                processingVersion: 'v1-policy-a'
+                processingVersion: 'v1-policy-a',
+                createdAtExternal: imported?.createdAtExternal ?? undefined
             };
         });
         await this.sessionRepo.upsertMany(closedSessionsPayload);
@@ -172,7 +173,8 @@ class TicketImportService {
                 assignedUserEmail: s.assignedUser?.email,
                 source: 'imported_complete',
                 originImportedTrackingId: imported ? imported.id : null,
-                processingVersion: 'v1-policy-a'
+                processingVersion: 'v1-policy-a',
+                createdAtExternal: imported?.createdAtExternal ?? undefined
             });
             if (imported) {
                 await this.importedTrackingRepo.markProcessed(imported.id, 'v1-policy-a');

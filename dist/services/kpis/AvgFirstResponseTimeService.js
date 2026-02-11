@@ -16,41 +16,20 @@ class AvgFirstResponseTimeService {
         });
         // 1. Find sessions with inbound in period and their first response
         const results = await client_1.prisma.$queryRaw `
-      WITH Inbounds AS (
-        SELECT
-          m."sessionId",
-          MIN(m."createdAtExternal") as "firstInboundAt"
-        FROM "messages" m
-        JOIN "tickets" t ON m."ticketId" = t."id"
-        WHERE t."clientId" = ${clientId}
-          AND t."isGroup" = false
-          AND m."sessionId" IS NOT NULL
-          AND m."fromMe" = false
-          AND m."senderType" = 'HUMAN'
-        GROUP BY m."sessionId"
-      ),
-      InboundsInPeriod AS (
-        SELECT *
-        FROM Inbounds
-        WHERE "firstInboundAt" >= ${startDate} AND "firstInboundAt" <= ${endDate}
-      ),
-      Outbounds AS (
-        SELECT
-          m."sessionId",
-          MIN(m."createdAtExternal") as "firstOutboundAt"
-        FROM "messages" m
-        JOIN InboundsInPeriod i ON m."sessionId" = i."sessionId"
-        WHERE m."fromMe" = true
-          AND m."senderType" IN ('HUMAN', 'AI')
-          AND m."createdAtExternal" > i."firstInboundAt"
-        GROUP BY m."sessionId"
-      )
       SELECT
-        i."sessionId",
-        i."firstInboundAt",
-        o."firstOutboundAt"
-      FROM InboundsInPeriod i
-      LEFT JOIN Outbounds o ON i."sessionId" = o."sessionId"
+        s."id" as "sessionId",
+        s."createdAtExternal" as "firstInboundAt",
+        CASE
+          WHEN s."startedAt" >= s."createdAtExternal" THEN s."startedAt"
+          ELSE NULL
+        END as "firstOutboundAt"
+      FROM "sessions" s
+      JOIN "tickets" t ON s."ticketId" = t."id"
+      WHERE t."clientId" = ${clientId}
+        AND t."isGroup" = false
+        AND s."createdAtExternal" IS NOT NULL
+        AND s."createdAtExternal" >= ${startDate}
+        AND s."createdAtExternal" <= ${endDate}
     `;
         let inserted = 0;
         let updated = 0;
@@ -101,42 +80,28 @@ class AvgFirstResponseTimeService {
     async getAvgFirstResponseTime({ clientId, startDate, endDate, groupBy }) {
         if (groupBy === 'total') {
             const rows = await client_1.prisma.$queryRaw `
-        WITH Inbounds AS (
-          SELECT
-            m."sessionId",
-            MIN(m."createdAtExternal") as "firstInboundAt"
-          FROM "messages" m
-          JOIN "tickets" t ON m."ticketId" = t."id"
-          WHERE t."clientId" = ${clientId}
-            AND t."isGroup" = false
-            AND m."sessionId" IS NOT NULL
-            AND m."fromMe" = false
-            AND m."senderType" = 'HUMAN'
-          GROUP BY m."sessionId"
-        ),
-        InboundsInPeriod AS (
-          SELECT *
-          FROM Inbounds
-          WHERE "firstInboundAt" >= ${startDate} AND "firstInboundAt" <= ${endDate}
+        WITH SessionsInPeriod AS (
+        SELECT
+            s."createdAtExternal" as "firstInboundAt",
+            CASE
+              WHEN s."startedAt" >= s."createdAtExternal" THEN s."startedAt"
+              ELSE NULL
+            END as "firstOutboundAt"
+          FROM "sessions" s
+          JOIN "tickets" t ON s."ticketId" = t."id"
+        WHERE t."clientId" = ${clientId}
+          AND t."isGroup" = false
+            AND s."createdAtExternal" IS NOT NULL
+            AND s."createdAtExternal" >= ${startDate}
+            AND s."createdAtExternal" <= ${endDate}
         )
         SELECT
           AVG(
-            EXTRACT(EPOCH FROM (o."firstOutboundAt" - i."firstInboundAt")) * 1000
+            EXTRACT(EPOCH FROM ("firstOutboundAt" - "firstInboundAt")) * 1000
           ) as avg_time,
-          COUNT(*) FILTER (WHERE o."firstOutboundAt" IS NOT NULL)::int as sessions_with_response,
-          COUNT(*) FILTER (WHERE o."firstOutboundAt" IS NULL)::int as sessions_without_response
-        FROM InboundsInPeriod i
-        LEFT JOIN (
-          SELECT
-            m."sessionId",
-            MIN(m."createdAtExternal") as "firstOutboundAt"
-          FROM "messages" m
-          JOIN InboundsInPeriod i ON m."sessionId" = i."sessionId"
-          WHERE m."fromMe" = true
-            AND m."senderType" IN ('HUMAN', 'AI')
-            AND m."createdAtExternal" > i."firstInboundAt"
-          GROUP BY m."sessionId"
-        ) o ON i."sessionId" = o."sessionId"
+          COUNT(*) FILTER (WHERE "firstOutboundAt" IS NOT NULL)::int as sessions_with_response,
+          COUNT(*) FILTER (WHERE "firstOutboundAt" IS NULL)::int as sessions_without_response
+        FROM SessionsInPeriod
       `;
             const row = rows[0] ?? { avg_time: null, sessions_with_response: 0, sessions_without_response: 0 };
             return [
@@ -150,43 +115,29 @@ class AvgFirstResponseTimeService {
         }
         const timeFormat = groupBy === 'month' ? 'YYYY-MM' : 'YYYY-MM-DD';
         const rows = await client_1.prisma.$queryRaw `
-      WITH Inbounds AS (
+      WITH SessionsInPeriod AS (
         SELECT
-          m."sessionId",
-          MIN(m."createdAtExternal") as "firstInboundAt"
-        FROM "messages" m
-        JOIN "tickets" t ON m."ticketId" = t."id"
+          s."createdAtExternal" as "firstInboundAt",
+          CASE
+            WHEN s."startedAt" >= s."createdAtExternal" THEN s."startedAt"
+            ELSE NULL
+          END as "firstOutboundAt"
+        FROM "sessions" s
+        JOIN "tickets" t ON s."ticketId" = t."id"
         WHERE t."clientId" = ${clientId}
           AND t."isGroup" = false
-          AND m."sessionId" IS NOT NULL
-          AND m."fromMe" = false
-          AND m."senderType" = 'HUMAN'
-        GROUP BY m."sessionId"
-      ),
-      InboundsInPeriod AS (
-        SELECT *
-        FROM Inbounds
-        WHERE "firstInboundAt" >= ${startDate} AND "firstInboundAt" <= ${endDate}
+          AND s."createdAtExternal" IS NOT NULL
+          AND s."createdAtExternal" >= ${startDate}
+          AND s."createdAtExternal" <= ${endDate}
       )
       SELECT
-        TO_CHAR(i."firstInboundAt", ${client_2.Prisma.raw(`'${timeFormat}'`)}) as period,
+        TO_CHAR("firstInboundAt", ${client_2.Prisma.raw(`'${timeFormat}'`)}) as period,
         AVG(
-          EXTRACT(EPOCH FROM (o."firstOutboundAt" - i."firstInboundAt")) * 1000
+          EXTRACT(EPOCH FROM ("firstOutboundAt" - "firstInboundAt")) * 1000
         ) as avg_time,
-        COUNT(*) FILTER (WHERE o."firstOutboundAt" IS NOT NULL)::int as sessions_with_response,
-        COUNT(*) FILTER (WHERE o."firstOutboundAt" IS NULL)::int as sessions_without_response
-      FROM InboundsInPeriod i
-      LEFT JOIN (
-        SELECT
-          m."sessionId",
-          MIN(m."createdAtExternal") as "firstOutboundAt"
-        FROM "messages" m
-        JOIN InboundsInPeriod i ON m."sessionId" = i."sessionId"
-        WHERE m."fromMe" = true
-          AND m."senderType" IN ('HUMAN', 'AI')
-          AND m."createdAtExternal" > i."firstInboundAt"
-        GROUP BY m."sessionId"
-      ) o ON i."sessionId" = o."sessionId"
+        COUNT(*) FILTER (WHERE "firstOutboundAt" IS NOT NULL)::int as sessions_with_response,
+        COUNT(*) FILTER (WHERE "firstOutboundAt" IS NULL)::int as sessions_without_response
+      FROM SessionsInPeriod
       GROUP BY 1
       ORDER BY 1
     `;
