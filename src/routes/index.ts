@@ -63,6 +63,15 @@ router.get('/kpis/avg-session-duration-by-tag', requireAdminToken, (req, res) =>
 router.get('/kpis/top-slowest-sessions-by-tag', requireAdminToken, (req, res) =>
   kpiController.getTopSlowestSessionsByTag(req, res)
 );
+router.get('/tenants/:tenantSlug/kpis/consolidated-sales/summary', requireAdminToken, (req, res) =>
+  kpiController.getConsolidatedSalesSummary(req, res)
+);
+router.get('/tenants/:tenantSlug/kpis/consolidated-sales/daily', requireAdminToken, (req, res) =>
+  kpiController.getConsolidatedSalesDaily(req, res)
+);
+router.get('/tenants/:tenantSlug/kpis/consolidated-sales/sellers', requireAdminToken, (req, res) =>
+  kpiController.getConsolidatedSalesSellers(req, res)
+);
 
 router.get('/health', (req, res) => res.json({ status: 'ok' }));
 

@@ -2,18 +2,22 @@ import { Request, Response } from 'express';
 import { AvgFirstResponseTimeService } from '../services/kpis/AvgFirstResponseTimeService';
 import { AvgSessionDurationByTagService } from '../services/kpis/AvgSessionDurationByTagService';
 import { TopSlowestSessionsByTagService } from '../services/kpis/TopSlowestSessionsByTagService';
+import { ConsolidatedSalesService } from '../services/kpis/ConsolidatedSalesService';
+import { TenantNotFoundError } from '../services/tenants/resolveClientIdBySlug';
 import { SinapseClientRepository } from '../repositories/SinapseClientRepository';
 
 export class KpiController {
   private service: AvgFirstResponseTimeService;
   private sessionDurationByTag: AvgSessionDurationByTagService;
   private topSlowestSessionsByTag: TopSlowestSessionsByTagService;
+  private consolidatedSales: ConsolidatedSalesService;
   private clientRepo: SinapseClientRepository;
 
   constructor() {
     this.service = new AvgFirstResponseTimeService();
     this.sessionDurationByTag = new AvgSessionDurationByTagService();
     this.topSlowestSessionsByTag = new TopSlowestSessionsByTagService();
+    this.consolidatedSales = new ConsolidatedSalesService();
     this.clientRepo = new SinapseClientRepository();
   }
 
@@ -206,4 +210,111 @@ export class KpiController {
       return res.status(500).json({ error: 'Internal server error' });
     }
   }
+
+  async getConsolidatedSalesSummary(req: Request, res: Response) {
+    try {
+      const tenantSlug = String(req.params.tenantSlug ?? '').trim();
+      if (!tenantSlug) return res.status(400).json({ error: 'Missing parameter: tenantSlug' });
+
+      const startDate = parseDateBoundary(req.query.start, 'start');
+      const endDate = parseDateBoundary(req.query.end, 'end');
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Missing or invalid parameters: start, end' });
+      }
+      if (startDate.getTime() > endDate.getTime()) {
+        return res.status(400).json({ error: 'Invalid date range: start > end' });
+      }
+
+      const sellerName = normalizeOptionalText(req.query.sellerName);
+
+      const result = await this.consolidatedSales.getConsolidatedSalesSummary({
+        tenantSlug,
+        startDate,
+        endDate,
+        sellerName,
+      });
+
+      return res.json(result);
+    } catch (error) {
+      if (error instanceof TenantNotFoundError) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+
+      console.error(error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async getConsolidatedSalesDaily(req: Request, res: Response) {
+    try {
+      const tenantSlug = String(req.params.tenantSlug ?? '').trim();
+      if (!tenantSlug) return res.status(400).json({ error: 'Missing parameter: tenantSlug' });
+
+      const startDate = parseDateBoundary(req.query.start, 'start');
+      const endDate = parseDateBoundary(req.query.end, 'end');
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Missing or invalid parameters: start, end' });
+      }
+      if (startDate.getTime() > endDate.getTime()) {
+        return res.status(400).json({ error: 'Invalid date range: start > end' });
+      }
+
+      const sellerName = normalizeOptionalText(req.query.sellerName);
+
+      const result = await this.consolidatedSales.getConsolidatedSalesDailySeries({
+        tenantSlug,
+        startDate,
+        endDate,
+        sellerName,
+      });
+
+      return res.json(result);
+    } catch (error) {
+      if (error instanceof TenantNotFoundError) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+
+      console.error(error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  async getConsolidatedSalesSellers(req: Request, res: Response) {
+    try {
+      const tenantSlug = String(req.params.tenantSlug ?? '').trim();
+      if (!tenantSlug) return res.status(400).json({ error: 'Missing parameter: tenantSlug' });
+
+      const sellers = await this.consolidatedSales.listConsolidatedSalesSellers({ tenantSlug });
+      return res.json(sellers);
+    } catch (error) {
+      if (error instanceof TenantNotFoundError) {
+        return res.status(error.statusCode).json({ error: error.message });
+      }
+
+      console.error(error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+}
+
+function parseDateBoundary(value: unknown, kind: 'start' | 'end'): Date | null {
+  if (Array.isArray(value)) return parseDateBoundary(value[0], kind);
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const dateOnlyMatch = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
+  const parsed = dateOnlyMatch
+    ? new Date(kind === 'start' ? `${trimmed}T00:00:00.000Z` : `${trimmed}T23:59:59.999Z`)
+    : new Date(trimmed);
+
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+function normalizeOptionalText(value: unknown): string | null {
+  if (Array.isArray(value)) return normalizeOptionalText(value[0]);
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized ? normalized : null;
 }

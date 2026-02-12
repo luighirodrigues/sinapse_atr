@@ -37,5 +37,8 @@ router.get('/kpis/avg-first-response-time', requireAdminToken_1.requireAdminToke
 router.post('/kpis/recompute/avg-first-response-time', requireAdminToken_1.requireAdminToken, (req, res) => kpiController.recomputeAvgFirstResponseTime(req, res));
 router.get('/kpis/avg-session-duration-by-tag', requireAdminToken_1.requireAdminToken, (req, res) => kpiController.getAvgSessionDurationByTag(req, res));
 router.get('/kpis/top-slowest-sessions-by-tag', requireAdminToken_1.requireAdminToken, (req, res) => kpiController.getTopSlowestSessionsByTag(req, res));
+router.get('/tenants/:tenantSlug/kpis/consolidated-sales/summary', requireAdminToken_1.requireAdminToken, (req, res) => kpiController.getConsolidatedSalesSummary(req, res));
+router.get('/tenants/:tenantSlug/kpis/consolidated-sales/daily', requireAdminToken_1.requireAdminToken, (req, res) => kpiController.getConsolidatedSalesDaily(req, res));
+router.get('/tenants/:tenantSlug/kpis/consolidated-sales/sellers', requireAdminToken_1.requireAdminToken, (req, res) => kpiController.getConsolidatedSalesSellers(req, res));
 router.get('/health', (req, res) => res.json({ status: 'ok' }));
 exports.default = router;
