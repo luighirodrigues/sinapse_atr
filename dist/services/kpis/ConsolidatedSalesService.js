@@ -20,7 +20,7 @@ class ConsolidatedSalesService {
         COALESCE(SUM(kcs.daily_budget_value_finalized), 0)::float8 AS budget_finalized_value_total,
         (${endDate}::date - ${startDate}::date + 1)::int AS days_in_period
       FROM public.kpi_consolidated_sales kcs
-      WHERE kcs."clientId" = ${clientId}
+      WHERE kcs.client_id = ${clientId}
         AND kcs.date_sale BETWEEN ${startDate}::date AND ${endDate}::date
         AND (${sellerName}::text IS NULL OR kcs.seller_name = ${sellerName})
     `;
@@ -60,7 +60,7 @@ class ConsolidatedSalesService {
       FROM date_series ds
       LEFT JOIN public.kpi_consolidated_sales kcs
         ON kcs.date_sale = ds.date_sale
-       AND kcs."clientId" = ${clientId}
+       AND kcs.client_id = ${clientId}
        AND (${sellerName}::text IS NULL OR kcs.seller_name = ${sellerName})
       GROUP BY ds.date_sale
       ORDER BY ds.date_sale ASC
@@ -80,7 +80,7 @@ class ConsolidatedSalesService {
         const rows = await client_1.prisma.$queryRaw `
       SELECT DISTINCT kcs.seller_name
       FROM public.kpi_consolidated_sales kcs
-      WHERE kcs."clientId" = ${clientId}
+      WHERE kcs.client_id = ${clientId}
         AND kcs.seller_name IS NOT NULL
         AND BTRIM(kcs.seller_name) <> ''
       ORDER BY kcs.seller_name ASC
