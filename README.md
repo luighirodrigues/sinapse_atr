@@ -7,8 +7,6 @@ Backend de importação de tickets (Multi-Tenant).
 1. Copie `.env.example` para `.env` e configure as variáveis.
    - `DATABASE_URL`: URL do Postgres.
    - `ADMIN_TOKEN`: Token para proteger endpoints administrativos.
-   - `DASHBOARD_WRITE_TOKEN`: Token para proteger escrita de layout em endpoints tenant.
-   - `DASHBOARD_INSECURE_USER_HEADER`: `true|false` para habilitar leitura temporária de `x-user-id`.
 
 2. Instale dependências:
    ```bash
@@ -88,7 +86,7 @@ curl -H "x-admin-token: seu_token" \
   - `PUT /api/tenant/:clientSlug/dashboard-layout`
   - `POST /api/tenant/:clientSlug/dashboard-layout/reset`
 
-Respostas de dashboard/config relevantes incluem `client: { id, slug, name }` e mantem `clientId` quando aplicavel.
+Respostas de dashboard/config relevantes incluem `client: { id, slug, name }` e mantem `clientId` quando aplicavel. Endpoints tenant de layout nao exigem mais `x-dashboard-write-token` nem `x-user-id` no backend.
 
 Detalhes e exemplos completos em [docs/dashboard-config-api.md](docs/dashboard-config-api.md).
 

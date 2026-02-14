@@ -26,23 +26,7 @@ Nao existe layout livre por coordenadas (`x,y,w,h`).
 ### TENANT
 
 - `GET /api/tenant/:clientSlug/dashboard-config`: leitura publica (nesta etapa).
-- Escrita (`PUT` e `POST reset`) exige:
-  - `x-dashboard-write-token: <DASHBOARD_WRITE_TOKEN>`
-  - ausente: `401 {"error":"unauthorized"}`
-  - invalido: `403 {"error":"forbidden"}`
-
-## UserId temporario (feature flag)
-
-Variavel:
-
-- `DASHBOARD_INSECURE_USER_HEADER` (`"true"` ou `"false"`)
-
-Regras:
-
-- Se `"true"`, backend le `x-user-id`.
-- Se `"false"`, backend ignora `x-user-id`.
-- Escrita exige `userId` resolvido.
-- Sem `userId`: `400 {"error":"userId required"}`.
+- Escrita (`PUT` e `POST reset`) nao exige mais headers extras de token/user no backend.
 
 ---
 
@@ -263,8 +247,7 @@ Observacao:
 
 ### Headers obrigatorios
 
-- `x-dashboard-write-token: <DASHBOARD_WRITE_TOKEN>`
-- `x-user-id: <USER_ID>` (somente quando `DASHBOARD_INSECURE_USER_HEADER=true`)
+- Nenhum header adicional.
 
 ### Body
 
@@ -304,8 +287,7 @@ Retorna o payload completo de `dashboard-config` recalculado.
 
 ### Headers obrigatorios
 
-- `x-dashboard-write-token: <DASHBOARD_WRITE_TOKEN>`
-- `x-user-id: <USER_ID>` (somente quando `DASHBOARD_INSECURE_USER_HEADER=true`)
+- Nenhum header adicional.
 
 ### Acao
 
@@ -319,7 +301,6 @@ Retorna o payload completo de `dashboard-config` recalculado.
 - `400 {"error":"userId required"}`
 - `400 {"error":"Invalid body: ..."}`
 - `401 {"error":"unauthorized"}`
-- `403 {"error":"forbidden"}`
 - `404 {"error":"client_not_found"}`
 - `409 {"error":"slug_conflict","message":"Slug already in use"}` (endpoints de clients)
 - `500 {"error":"Internal server error"}`

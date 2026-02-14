@@ -1,13 +1,7 @@
 import { Request } from 'express';
-import { env } from '../../config/env';
 
-export function resolveDashboardUserId(req: Request): string | null {
-  if (env.DASHBOARD_INSECURE_USER_HEADER !== 'true') {
-    return null;
-  }
+const DEFAULT_DASHBOARD_USER_ID = 'authorized_frontend_user';
 
-  const value = req.header('x-user-id');
-  if (!value) return null;
-  const normalized = value.trim();
-  return normalized ? normalized : null;
+export function resolveDashboardUserId(_req: Request): string {
+  return DEFAULT_DASHBOARD_USER_ID;
 }

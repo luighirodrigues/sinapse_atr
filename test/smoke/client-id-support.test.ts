@@ -125,8 +125,6 @@ test('rotas por id nao conflitam com slug e auth continua ativa', async () => {
   process.env.DATABASE_URL = process.env.DATABASE_URL ?? 'http://localhost:5432/db';
   process.env.IMPORT_START_AT = process.env.IMPORT_START_AT ?? '2026-01-01T00:00:00.000Z';
   process.env.ADMIN_TOKEN = 'token-admin-smoke';
-  process.env.DASHBOARD_WRITE_TOKEN = 'token-dashboard-smoke';
-  process.env.DASHBOARD_INSECURE_USER_HEADER = process.env.DASHBOARD_INSECURE_USER_HEADER ?? 'true';
 
   const { AdminDashboardController } = await import('../../src/controllers/AdminDashboardController');
   const { TenantDashboardController } = await import('../../src/controllers/TenantDashboardController');
@@ -175,15 +173,14 @@ test('rotas por id nao conflitam com slug e auth continua ativa', async () => {
     const unauthorizedResp = await fetch(`${base}/admin/clients/id/abc123/kpis`);
     assert.equal(unauthorizedResp.status, 401);
 
-    const forbiddenResp = await fetch(`${base}/tenant/clients/id/abc123/dashboard-layout`, {
+    const tenantWriteResp = await fetch(`${base}/tenant/clients/id/abc123/dashboard-layout`, {
       method: 'PUT',
       headers: {
         'content-type': 'application/json',
-        'x-dashboard-write-token': 'token-invalido',
       },
       body: JSON.stringify({ layout: { version: 1, type: 'ORDER', order: [], hidden: [], configOverrides: {} } }),
     });
-    assert.equal(forbiddenResp.status, 403);
+    assert.equal(tenantWriteResp.status, 200);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));

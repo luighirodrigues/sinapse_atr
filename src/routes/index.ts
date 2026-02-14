@@ -9,7 +9,6 @@ import { AnalysisTenantController } from '../controllers/AnalysisTenantControlle
 import { AdminDashboardController } from '../controllers/AdminDashboardController';
 import { TenantDashboardController } from '../controllers/TenantDashboardController';
 import { requireAdminToken } from '../middlewares/requireAdminToken';
-import { requireDashboardWriteToken } from '../middlewares/requireDashboardWriteToken';
 
 const router = Router();
 const jobController = new JobController();
@@ -70,10 +69,10 @@ router.put('/admin/clients/:clientSlug/dashboard-layout/default', requireAdminTo
 router.get('/tenant/clients/id/:clientId/dashboard-config', (req, res) =>
   tenantDashboardController.getDashboardConfigById(req, res)
 );
-router.put('/tenant/clients/id/:clientId/dashboard-layout', requireDashboardWriteToken, (req, res) =>
+router.put('/tenant/clients/id/:clientId/dashboard-layout', (req, res) =>
   tenantDashboardController.putUserLayoutById(req, res)
 );
-router.post('/tenant/clients/id/:clientId/dashboard-layout/reset', requireDashboardWriteToken, (req, res) =>
+router.post('/tenant/clients/id/:clientId/dashboard-layout/reset', (req, res) =>
   tenantDashboardController.resetUserLayoutById(req, res)
 );
 router.get('/tenant/:clientSlug/session-analyses/summary', (req, res) =>
@@ -88,10 +87,10 @@ router.get('/tenant/:clientSlug/session-analyses/details', (req, res) =>
 router.get('/tenant/:clientSlug/dashboard-config', (req, res) =>
   tenantDashboardController.getDashboardConfig(req, res)
 );
-router.put('/tenant/:clientSlug/dashboard-layout', requireDashboardWriteToken, (req, res) =>
+router.put('/tenant/:clientSlug/dashboard-layout', (req, res) =>
   tenantDashboardController.putUserLayout(req, res)
 );
-router.post('/tenant/:clientSlug/dashboard-layout/reset', requireDashboardWriteToken, (req, res) =>
+router.post('/tenant/:clientSlug/dashboard-layout/reset', (req, res) =>
   tenantDashboardController.resetUserLayout(req, res)
 );
 

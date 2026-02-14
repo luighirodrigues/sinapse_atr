@@ -92,7 +92,6 @@ export class TenantDashboardController {
     res: Response
   ) {
     const userId = resolveDashboardUserId(req);
-    if (!userId) return res.status(400).json({ error: 'userId required' });
 
     const layoutPayload = parseLayoutPayload(req.body);
     if (!layoutPayload.ok) return res.status(400).json({ error: layoutPayload.error });
@@ -112,7 +111,6 @@ export class TenantDashboardController {
     res: Response
   ) {
     const userId = resolveDashboardUserId(req);
-    if (!userId) return res.status(400).json({ error: 'userId required' });
 
     const config = await this.dashboardService.resetUserLayout(client.id, userId);
     return res.json({
