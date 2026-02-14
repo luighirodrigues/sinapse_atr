@@ -20,6 +20,12 @@ export class SinapseClientRepository {
     });
   }
 
+  async findById(id: string) {
+    return prisma.sinapseClient.findUnique({
+      where: { id },
+    });
+  }
+
   async create(data: Omit<SinapseClient, 'id' | 'createdAt' | 'updatedAt'>) {
     return prisma.sinapseClient.create({
       data,
@@ -30,6 +36,17 @@ export class SinapseClientRepository {
     return prisma.sinapseClient.update({
       where: { id },
       data,
+    });
+  }
+
+  async upsertBySlug(
+    slug: string,
+    data: Pick<SinapseClient, 'name' | 'apiBaseUrl' | 'apiKey' | 'isActive'>
+  ) {
+    return prisma.sinapseClient.upsert({
+      where: { slug },
+      create: { slug, ...data },
+      update: data,
     });
   }
 }

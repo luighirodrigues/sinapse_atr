@@ -6,6 +6,9 @@
 - [Admin · Clients](#admin--clients)
   - [Listar clients](#listar-clients)
   - [Criar client](#criar-client)
+  - [Ensure client (idempotente por slug)](#ensure-client-idempotente-por-slug)
+  - [Buscar client por ID](#buscar-client-por-id)
+  - [Atualizar client por ID (recomendado)](#atualizar-client-por-id-recomendado)
   - [Atualizar client](#atualizar-client)
 
 ## Visão geral
@@ -171,14 +174,12 @@ Opcionais:
 
 ```json
 {
-  "id": "clxk0b6xq0001s9nqf5xv9q3f",
-  "slug": "corz",
-  "name": "Corz",
-  "apiBaseUrl": "https://atende-api.corz.com.br/api",
-  "apiKey": "seu_token",
-  "isActive": true,
-  "createdAt": "2026-02-01T12:34:56.789Z",
-  "updatedAt": "2026-02-01T12:34:56.789Z"
+  "client": {
+    "id": "clxk0b6xq0001s9nqf5xv9q3f",
+    "slug": "corz",
+    "name": "Corz",
+    "isActive": true
+  }
 }
 ```
 
@@ -195,14 +196,12 @@ curl -X POST "http://localhost:3000/api/clients" \
 
 ```json
 {
-  "id": "clxk0b6xq0001s9nqf5xv9q3f",
-  "slug": "corz",
-  "name": "Corz",
-  "apiBaseUrl": "https://atende-api.corz.com.br/api",
-  "apiKey": "seu_token",
-  "isActive": true,
-  "createdAt": "2026-02-01T12:34:56.789Z",
-  "updatedAt": "2026-02-01T12:34:56.789Z"
+  "client": {
+    "id": "clxk0b6xq0001s9nqf5xv9q3f",
+    "slug": "corz",
+    "name": "Corz",
+    "isActive": true
+  }
 }
 ```
 
@@ -214,8 +213,127 @@ curl -X POST "http://localhost:3000/api/clients" \
 **Possíveis erros**
 
 - `400 {"error":"Failed to create client","details":...}`
+- `409 {"error":"slug_conflict","message":"Slug already in use"}`
 - `401 {"error":"unauthorized"}`
 - `500 {"error":"Internal server error"}` (erro inesperado)
+
+---
+
+### Ensure client (idempotente por slug)
+
+**Descrição**
+
+Cria ou atualiza um client com base no `slug`. Repetir a mesma chamada para o mesmo `slug` retorna o mesmo `id`.
+
+**Método e URL**
+
+- `POST /api/clients/ensure`
+
+**Autenticação**
+
+- Obrigatória: `x-admin-token`
+
+**Corpo da requisição**
+
+```json
+{
+  "slug": "corz",
+  "name": "Corz",
+  "apiBaseUrl": "https://atende-api.corz.com.br/api",
+  "apiKey": "seu_token",
+  "isActive": true
+}
+```
+
+**Resposta de sucesso (200)**
+
+```json
+{
+  "client": {
+    "id": "clxk0b6xq0001s9nqf5xv9q3f",
+    "slug": "corz",
+    "name": "Corz",
+    "isActive": true
+  }
+}
+```
+
+**Possíveis erros**
+
+- `400 {"error":"Failed to ensure client","details":...}`
+- `409 {"error":"slug_conflict","message":"Slug already in use"}`
+- `401 {"error":"unauthorized"}`
+
+---
+
+### Buscar client por ID
+
+**Método e URL**
+
+- `GET /api/clients/id/:clientId`
+
+**Autenticação**
+
+- Obrigatória: `x-admin-token`
+
+**Resposta de sucesso (200)**
+
+```json
+{
+  "client": {
+    "id": "clxk0b6xq0001s9nqf5xv9q3f",
+    "slug": "corz",
+    "name": "Corz",
+    "isActive": true
+  }
+}
+```
+
+**Possíveis erros**
+
+- `404 {"error":"client_not_found"}`
+- `401 {"error":"unauthorized"}`
+
+---
+
+### Atualizar client por ID (recomendado)
+
+**Método e URL**
+
+- `PATCH /api/clients/id/:clientId`
+
+**Autenticação**
+
+- Obrigatória: `x-admin-token`
+
+**Corpo da requisição**
+
+Parcial, com campos permitidos:
+
+- `slug` (string)
+- `name` (string)
+- `apiBaseUrl` (string)
+- `apiKey` (string)
+- `isActive` (boolean)
+
+**Resposta de sucesso (200)**
+
+```json
+{
+  "client": {
+    "id": "clxk0b6xq0001s9nqf5xv9q3f",
+    "slug": "corz",
+    "name": "Corz Atendimento",
+    "isActive": false
+  }
+}
+```
+
+**Possíveis erros**
+
+- `404 {"error":"client_not_found"}`
+- `409 {"error":"slug_conflict","message":"Slug already in use"}`
+- `401 {"error":"unauthorized"}`
 
 ---
 
@@ -227,7 +345,8 @@ Atualiza campos de um client existente.
 
 **Método e URL**
 
-- `PATCH /api/clients/:id`
+- Legacy: `PATCH /api/clients/:id`
+- Recomendado: `PATCH /api/clients/id/:clientId`
 
 **Autenticação**
 

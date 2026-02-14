@@ -8,29 +8,68 @@ datasource db {
 }
 
 model SinapseClient {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  apiBaseUrl  String
-  apiKey      String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  tickets      Ticket[]
-  importStates ImportState[]
-  conversationMetrics ConversationMetrics[]
+  id                     String                   @id @default(cuid())
+  slug                   String                   @unique
+  name                   String
+  apiBaseUrl             String
+  apiKey                 String
+  isActive               Boolean                  @default(true)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  conversationMetrics    ConversationMetrics[]
+  importStates           ImportState[]
+  kpi_consolidated_sales kpi_consolidated_sales[]
+  tenantKpis             TenantKpi[]
+  dashboardLayouts       DashboardLayout[]
+  tickets                Ticket[]
 
   @@map("sinapse_clients")
 }
 
-model ImportState {
-  id           String   @id @default(uuid())
-  key          String
-  lastImportAt DateTime @default(now())
-  lastPage     Int?
-  clientId     String
+enum DashboardLayoutScope {
+  TENANT_DEFAULT
+  USER
+}
 
+model TenantKpi {
+  id             String        @id @default(cuid())
+  clientId       String
+  kpiKey         String
+  isAllowed      Boolean       @default(false)
+  defaultVisible Boolean       @default(true)
+  defaultConfig  Json?
+  locked         Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  client         SinapseClient @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, kpiKey], map: "uq_tenant_kpis_client_kpi")
+  @@index([clientId], map: "ix_tenant_kpis_client")
+  @@map("tenant_kpis")
+}
+
+model DashboardLayout {
+  id        String              @id @default(cuid())
+  clientId  String
+  layoutKey String
+  scope     DashboardLayoutScope
+  userId    String?
+  layout    Json
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  client    SinapseClient       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, layoutKey], map: "uq_dashboard_layouts_client_layout_key")
+  @@index([clientId], map: "ix_dashboard_layouts_client")
+  @@map("dashboard_layouts")
+}
+
+model ImportState {
+  id           String        @id @default(uuid())
+  key          String
+  lastImportAt DateTime      @default(now())
+  clientId     String
+  lastPage     Int?
   client       SinapseClient @relation(fields: [clientId], references: [id])
 
   @@unique([clientId, key])
@@ -38,29 +77,28 @@ model ImportState {
 }
 
 model Ticket {
-  id                           String    @id @default(uuid())
+  id                           String             @id @default(uuid())
   externalUuid                 String
   externalTicketId             Int?
   status                       String?
-  isGroup                      Boolean   @default(false)
   contactName                  String?
   contactNumber                String?
   contactExternalId            Int?
-  contactId                    BigInt?
   socialConnectionId           Int?
   companyId                    Int?
   createdAtExternal            DateTime?
   updatedAtExternal            DateTime?
   lastImportedMessageCreatedAt DateTime?
-  createdAt                    DateTime  @default(now())
-  updatedAt                    DateTime  @updatedAt
+  createdAt                    DateTime           @default(now())
+  updatedAt                    DateTime           @updatedAt
   clientId                     String
-
-  client   SinapseClient @relation(fields: [clientId], references: [id])
-  contact  Contact?      @relation(fields: [clientId, contactId], references: [clientId, id])
-  sessions Session[]
-  messages Message[]
-  importedTrackings ImportedTracking[]
+  contactId                    BigInt?
+  isGroup                      Boolean            @default(false)
+  importedTrackings            ImportedTracking[]
+  messages                     Message[]
+  sessions                     Session[]
+  contact                      Contact?           @relation(fields: [clientId, contactId], references: [clientId, id])
+  client                       SinapseClient      @relation(fields: [clientId], references: [id])
 
   @@unique([clientId, externalUuid])
   @@index([clientId, contactId])
@@ -81,11 +119,10 @@ model Contact {
   profilePicUrl      String?
   createdAtRemote    DateTime?
   updatedAtRemote    DateTime?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  tags    ContactTag[]
-  tickets Ticket[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  tags               ContactTag[]
+  tickets            Ticket[]
 
   @@id([clientId, id])
   @@index([clientId, number])
@@ -98,10 +135,9 @@ model Tag {
   companyId BigInt?
   name      String
   color     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  contacts ContactTag[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  contacts  ContactTag[]
 
   @@id([clientId, id])
   @@index([clientId, name])
@@ -113,63 +149,53 @@ model ContactTag {
   contactId BigInt
   tagId     BigInt
   createdAt DateTime @default(now())
-
-  contact Contact @relation(fields: [clientId, contactId], references: [clientId, id], onDelete: Cascade)
-  tag     Tag     @relation(fields: [clientId, tagId], references: [clientId, id], onDelete: Cascade)
+  contact   Contact  @relation(fields: [clientId, contactId], references: [clientId, id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [clientId, tagId], references: [clientId, id], onDelete: Cascade)
 
   @@id([clientId, contactId, tagId])
   @@index([clientId, tagId])
   @@map("contact_tags")
 }
 
-enum SessionType {
-  CLOSED
-  OPEN_REAL
-  OPEN_WEAK
-  UNTRACKED
-}
-
 model ImportedTracking {
-  id                String    @id @default(uuid())
-  ticketId          String
-  externalTrackingId Int?
-  createdAtExternal DateTime
-  startedAtExternal DateTime?
-  endedAtExternal   DateTime?
+  id                          String    @id @default(uuid())
+  ticketId                    String
+  externalTrackingId          Int?
+  createdAtExternal           DateTime
+  startedAtExternal           DateTime?
+  endedAtExternal             DateTime?
   lastRebuildMessageCreatedAt DateTime?
-  processedAt       DateTime?
-  processingVersion String?
-  processingNotes   String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  processedAt                 DateTime?
+  processingVersion           String?
+  processingNotes             String?
+  createdAt                   DateTime  @default(now())
+  updatedAt                   DateTime  @updatedAt
+  ticket                      Ticket    @relation(fields: [ticketId], references: [id])
+  sessions                    Session[]
 
-  ticket   Ticket    @relation(fields: [ticketId], references: [id])
-  sessions Session[]
-
-  @@map("imported_trackings")
   @@index([ticketId])
+  @@map("imported_trackings")
 }
 
 model Session {
-  id                 String      @id @default(uuid())
-  ticketId           String
-  externalTrackingId Int?
-  type               SessionType
-  startedAt          DateTime
-  endedAt            DateTime?
-  assignedUserName   String?
-  assignedUserEmail  String?
-  source             String?
+  id                       String            @id @default(uuid())
+  ticketId                 String
+  externalTrackingId       Int?
+  type                     SessionType
+  startedAt                DateTime
+  endedAt                  DateTime?
+  assignedUserName         String?
+  assignedUserEmail        String?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
   originImportedTrackingId String?
-  processingVersion  String?
-  createdAtExternal  DateTime?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
-
-  ticket           Ticket            @relation(fields: [ticketId], references: [id])
-  importedTracking ImportedTracking? @relation(fields: [originImportedTrackingId], references: [id])
-  messages         Message[]
-  analyses         SessionAnalysis[]
+  processingVersion        String?
+  source                   String?
+  createdAtExternal        DateTime?
+  messages                 Message[]
+  analyses                 SessionAnalysis[]
+  importedTracking         ImportedTracking? @relation(fields: [originImportedTrackingId], references: [id])
+  ticket                   Ticket            @relation(fields: [ticketId], references: [id])
 
   @@unique([ticketId, externalTrackingId])
   @@index([ticketId, startedAt])
@@ -177,24 +203,23 @@ model Session {
 }
 
 model Message {
-  id                String    @id @default(uuid())
+  id                String            @id @default(uuid())
   ticketId          String
   sessionId         String?
   externalMessageId String
   key               String?
   body              String
   fromMe            Boolean
-  senderType        MessageSenderType @default(HUMAN)
   mediaUrl          String?
   mediaType         String?
   createdAtExternal DateTime
   updatedAtExternal DateTime
   rawJson           Json?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  ticket  Ticket   @relation(fields: [ticketId], references: [id])
-  session Session? @relation(fields: [sessionId], references: [id])
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  senderType        MessageSenderType @default(HUMAN)
+  session           Session?          @relation(fields: [sessionId], references: [id])
+  ticket            Ticket            @relation(fields: [ticketId], references: [id])
 
   @@unique([ticketId, externalMessageId])
   @@index([ticketId, createdAtExternal])
@@ -211,10 +236,10 @@ model AnalysisScript {
   name        String
   description String?
   scriptText  String
-  topics      Json     @default(dbgenerated("'[]'::jsonb"))
+  topics      Json     @default("[]")
   isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now()) @db.Timestamptz
-  updatedAt   DateTime @default(now()) @db.Timestamptz
+  createdAt   DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @db.Timestamptz(6)
 
   @@unique([clientId, scriptKey, version], map: "uq_analysis_scripts")
   @@index([clientId, scriptKey, isActive], map: "ix_analysis_scripts_client_key_active")
@@ -222,25 +247,24 @@ model AnalysisScript {
 }
 
 model SessionAnalysis {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  clientId            String
-  sessionId           String
-  scriptKey           String
-  scriptVersion       Int
-  analysisVersionTag  String   @default("v1")
-  model               String?
-  promptHash          String?
-  status              String   @default("pending")
-  startedAt           DateTime? @db.Timestamptz
-  processedAt         DateTime? @db.Timestamptz
-  retryCount          Int      @default(0)
-  nextRetryAt         DateTime? @db.Timestamptz
-  error               String?
-  report              Json?
-  createdAt           DateTime @default(now()) @db.Timestamptz
-  updatedAt           DateTime @default(now()) @db.Timestamptz
-
-  session             Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  clientId           String
+  sessionId          String
+  scriptKey          String
+  scriptVersion      Int
+  analysisVersionTag String    @default("v1")
+  model              String?
+  promptHash         String?
+  status             String    @default("pending")
+  startedAt          DateTime? @db.Timestamptz(6)
+  processedAt        DateTime? @db.Timestamptz(6)
+  retryCount         Int       @default(0)
+  nextRetryAt        DateTime? @db.Timestamptz(6)
+  error              String?
+  report             Json?
+  createdAt          DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime  @default(now()) @db.Timestamptz(6)
+  session            Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, scriptKey, scriptVersion, analysisVersionTag], map: "uq_session_analysis")
   @@index([clientId, status, nextRetryAt], map: "ix_session_analyses_queue")
@@ -248,24 +272,47 @@ model SessionAnalysis {
   @@map("session_analyses")
 }
 
-enum MessageSenderType {
-  HUMAN
-  SYSTEM
-  AI
-}
-
 model ConversationMetrics {
-  id                  String   @id @default(uuid())
+  id                  String        @id @default(uuid())
   clientId            String
   sessionId           String
-  firstInboundAt      DateTime @db.Timestamptz
-  firstOutboundAt     DateTime @db.Timestamptz
+  firstInboundAt      DateTime      @db.Timestamptz(6)
+  firstOutboundAt     DateTime      @db.Timestamptz(6)
   firstResponseTimeMs Int
-  createdAt           DateTime @default(now()) @db.Timestamptz
-
-  client SinapseClient @relation(fields: [clientId], references: [id])
+  createdAt           DateTime      @default(now()) @db.Timestamptz(6)
+  client              SinapseClient @relation(fields: [clientId], references: [id])
 
   @@unique([clientId, sessionId])
   @@index([clientId, firstInboundAt])
   @@map("conversation_metrics")
+}
+
+model kpi_consolidated_sales {
+  id                           Int           @id @default(autoincrement())
+  client_id                    String
+  seller_id                    BigInt
+  seller_name                  String        @db.VarChar(255)
+  date_sale                    DateTime      @db.Date
+  daily_sales_count            Int
+  daily_sales_value            Float
+  daily_budget_count           Int
+  daily_budget_value           Float
+  daily_budget_count_finalized Int
+  daily_budget_value_finalized Float
+  created_at                   DateTime      @default(now()) @db.Timestamp(6)
+  updated_at                   DateTime      @default(now()) @db.Timestamp(6)
+  sinapse_clients              SinapseClient @relation(fields: [client_id], references: [id], map: "kpi_consolidated_sales_client_fk")
+}
+
+enum SessionType {
+  CLOSED
+  OPEN_REAL
+  OPEN_WEAK
+  UNTRACKED
+}
+
+enum MessageSenderType {
+  HUMAN
+  SYSTEM
+  AI
 }
