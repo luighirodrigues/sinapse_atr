@@ -135,19 +135,31 @@ export class KpiController {
 
   async getTopSlowestSessionsByTag(req: Request, res: Response) {
     try {
-      const { clientSlug, from, to, tag, limit, includeTags } = req.query;
+      const { clientSlug, clientId, from, to, start, end, tag, limit, includeTags } = req.query;
 
-      if (!clientSlug || !from || !to) {
-        return res.status(400).json({ error: 'Missing parameters: clientSlug, from, to' });
+      const fromInput = from ?? start;
+      const toInput = to ?? end;
+      if (!fromInput || !toInput) {
+        return res.status(400).json({ error: 'Missing parameters: from, to' });
       }
 
-      const client = await this.clientRepo.findBySlug(String(clientSlug));
-      if (!client) {
-        return res.status(404).json({ error: 'Client not found' });
+      let resolvedClientId: string | null = clientId ? String(clientId) : null;
+      let resolvedClientSlug: string | null = clientSlug ? String(clientSlug) : null;
+      if (!resolvedClientId) {
+        if (!clientSlug) {
+          return res.status(400).json({ error: 'Missing client identifier: clientId or clientSlug' });
+        }
+
+        const client = await this.clientRepo.findBySlug(String(clientSlug));
+        if (!client) {
+          return res.status(404).json({ error: 'Client not found' });
+        }
+        resolvedClientId = client.id;
+        resolvedClientSlug = client.slug ?? String(clientSlug);
       }
 
-      const fromStr = String(from);
-      const toStr = String(to);
+      const fromStr = String(fromInput);
+      const toStr = String(toInput);
 
       const startDate = new Date(fromStr);
       if (Number.isNaN(startDate.getTime())) {
@@ -189,7 +201,7 @@ export class KpiController {
       const normalizedTag = typeof tag === 'string' && tag.trim() ? tag.trim() : undefined;
 
       const items = await this.topSlowestSessionsByTag.getTopSlowestSessionsByTag({
-        clientId: client.id,
+        clientId: resolvedClientId,
         startDate,
         endDate,
         tag: normalizedTag,
@@ -198,7 +210,8 @@ export class KpiController {
       });
 
       return res.json({
-        clientSlug: String(clientSlug),
+        clientId: resolvedClientId,
+        clientSlug: resolvedClientSlug,
         from: fromStr,
         to: toStr,
         tag: normalizedTag ?? null,
